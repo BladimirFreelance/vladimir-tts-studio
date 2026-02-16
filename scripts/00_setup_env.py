@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,16 @@ from pathlib import Path
 def run(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
     print(f"\n>>> {' '.join(cmd)}")
     subprocess.run(cmd, check=True, env=env)
+
+
+def run_capture(cmd: list[str]) -> str | None:
+    try:
+        completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    except OSError:
+        return None
+    if completed.returncode != 0:
+        return None
+    return completed.stdout.strip()
 
 
 def resolve_pip(venv_dir: Path) -> list[str]:
@@ -47,26 +58,82 @@ def install_torch(pip_cmd: list[str], mode: str) -> None:
         run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cu121"])
         return
 
-    # auto
-    is_windows_or_linux = platform.system().lower() in {"windows", "linux"}
-    if is_windows_or_linux:
-        try:
-            run(
-                pip_cmd
-                + [
-                    "install",
-                    "torch",
-                    "torchvision",
-                    "torchaudio",
-                    "--index-url",
-                    "https://download.pytorch.org/whl/cu121",
-                ]
-            )
-            return
-        except subprocess.CalledProcessError:
-            print("CUDA-сборка PyTorch не установилась, пробую CPU-сборку...")
+    if mode == "cu124":
+        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cu124"])
+        return
 
-    run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"])
+    if mode == "rocm":
+        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/rocm6.1"])
+        return
+
+    if mode == "directml":
+        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"])
+        run(pip_cmd + ["install", "torch-directml"])
+        return
+
+    # auto
+    torch_mode = auto_detect_torch_mode()
+    print(f"[auto] Выбран режим установки PyTorch: {torch_mode}")
+    try:
+        install_torch(pip_cmd, torch_mode)
+    except subprocess.CalledProcessError:
+        print(f"[auto] Режим '{torch_mode}' не установился, fallback на CPU...")
+        install_torch(pip_cmd, "cpu")
+
+
+def detect_nvidia_cuda_version() -> tuple[int, int] | None:
+    output = run_capture(["nvidia-smi"])
+    if not output:
+        return None
+    match = re.search(r"CUDA Version:\s*(\d+)\.(\d+)", output)
+    if not match:
+        return None
+    return int(match.group(1)), int(match.group(2))
+
+
+def detect_windows_gpu_vendor() -> str | None:
+    if os.name != "nt":
+        return None
+    output = run_capture(
+        [
+            "powershell",
+            "-NoProfile",
+            "-Command",
+            "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
+        ]
+    )
+    if not output:
+        return None
+    names = output.lower()
+    if "nvidia" in names:
+        return "nvidia"
+    if "amd" in names or "radeon" in names:
+        return "amd"
+    if "intel" in names:
+        return "intel"
+    return None
+
+
+def auto_detect_torch_mode() -> str:
+    system = platform.system().lower()
+    cuda = detect_nvidia_cuda_version()
+    if cuda:
+        major, minor = cuda
+        if major > 12 or (major == 12 and minor >= 4):
+            return "cu124"
+        if major >= 12:
+            return "cu121"
+
+    if system == "windows":
+        vendor = detect_windows_gpu_vendor()
+        if vendor in {"amd", "intel"}:
+            return "directml"
+        return "cpu"
+
+    if system == "linux" and Path("/opt/rocm").exists():
+        return "rocm"
+
+    return "cpu"
 
 
 def print_system_hints() -> None:
@@ -74,6 +141,8 @@ def print_system_hints() -> None:
         print("\n[!] ffmpeg не найден в PATH. Для авто-исправления аудио doctor-ом установите ffmpeg.")
     if shutil.which("espeak-ng") is None:
         print("[!] espeak-ng не найден в PATH. Для piper/espeakbridge установите espeak-ng.")
+    if os.name == "nt":
+        print("[i] Для обучения на Windows без WSL рекомендуется установить свежий драйвер GPU (NVIDIA/AMD/Intel).")
 
 
 
@@ -89,9 +158,9 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--torch",
-        choices=["auto", "cpu", "cu121", "skip"],
-        default="cpu",
-        help="Как устанавливать PyTorch (по умолчанию cpu)",
+        choices=["auto", "cpu", "cu121", "cu124", "rocm", "directml", "skip"],
+        default="auto",
+        help="Как устанавливать PyTorch (по умолчанию auto)",
     )
     parser.add_argument(
         "--extras",
