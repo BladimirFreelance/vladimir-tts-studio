@@ -20,11 +20,23 @@ python scripts/00_setup_env.py
 Полезные варианты:
 
 ```bash
-python scripts/00_setup_env.py --torch cu121    # CUDA 12.1 сборка PyTorch
-python scripts/00_setup_env.py --torch auto     # сначала CUDA, затем fallback на CPU
-python scripts/00_setup_env.py --torch skip     # пропустить torch
-python scripts/00_setup_env.py --no-venv        # ставить в текущее окружение
+python scripts/00_setup_env.py --torch auto      # авто-детект GPU/драйверов и подбор сборки
+python scripts/00_setup_env.py --torch cu124     # CUDA 12.4+ сборка PyTorch
+python scripts/00_setup_env.py --torch cu121     # CUDA 12.1 сборка PyTorch
+python scripts/00_setup_env.py --torch directml  # AMD/Intel GPU на Windows (без WSL)
+python scripts/00_setup_env.py --torch skip      # пропустить torch
+python scripts/00_setup_env.py --no-venv         # ставить в текущее окружение
 ```
+
+## Обучение на GPU в Windows (без WSL)
+
+Скрипт `scripts/00_setup_env.py` теперь автоматически определяет конфигурацию ПК и ставит максимально совместимый стек:
+
+- **NVIDIA GPU**: читает `nvidia-smi` и выбирает `cu124`/`cu121` в зависимости от версии CUDA драйвера.
+- **AMD/Intel GPU (Windows)**: ставит CPU-колёса PyTorch + `torch-directml` для запуска обучения через DirectML.
+- **Fallback**: если GPU-вариант недоступен, автоматически переключается на CPU-сборку.
+
+Для ручного контроля можно явно указать `--torch`.
 
 ## Быстрый старт (PyCharm / обычный `python`)
 
