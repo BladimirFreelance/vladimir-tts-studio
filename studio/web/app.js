@@ -1,19 +1,50 @@
-let state = { audio_id: null, text: null, index: 0, total: 0 };
+let state = { audio_id: null, text: null, index: 0, total: 0, done: false };
 let mediaRecorder = null;
 let chunks = [];
 let stream = null;
 let startedAt = null;
 let timerHandle = null;
 
-async function fetchNext() {
-  const resp = await fetch('/api/next');
-  state = await resp.json();
-  render();
+async function api(path, options = {}) {
+  const resp = await fetch(path, options);
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
+  return data;
 }
 
-function render() {
-  document.getElementById('line').innerText = state.done ? 'Готово! Все фразы записаны.' : (state.text || 'Нет текста');
-  document.getElementById('progress').innerText = `${state.index}/${state.total}`;
+function renderPrompt() {
+  document.getElementById('line').innerText = state.done ? 'Готово! Все фразы записаны.' : (state.text || 'Сначала подготовьте датасет');
+  document.getElementById('progress').innerText = `${state.index || 0}/${state.total || 0}`;
+}
+
+async function fetchNext() {
+  state = await api('/api/next');
+  renderPrompt();
+}
+
+async function refreshStatus() {
+  try {
+    const status = await api('/api/status');
+    document.getElementById('projectInfo').innerText = `Проект: ${status.project} (${status.project_dir})`;
+    document.getElementById('status').innerText = `Подготовлен: ${status.prepared ? 'да' : 'нет'} | Записано: ${status.recorded}/${status.total} | Задача: ${status.task.name || '-'} (${status.task.status})`;
+    const result = status.task.error || JSON.stringify(status.task.last_result || {}, null, 2);
+    document.getElementById('taskResult').innerText = result;
+  } catch (err) {
+    document.getElementById('status').innerText = `Ошибка обновления статуса: ${err.message}`;
+  }
+}
+
+async function runAction(path, payload) {
+  try {
+    await api(path, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    await refreshStatus();
+  } catch (err) {
+    alert(err.message);
+  }
 }
 
 async function initAudio() {
@@ -52,7 +83,7 @@ function stopRecording() {
 }
 
 async function saveRecording() {
-  if (!chunks.length) return;
+  if (!chunks.length || !state.audio_id) return;
   const blob = new Blob(chunks, { type: 'audio/webm' });
   document.getElementById('preview').src = URL.createObjectURL(blob);
 
@@ -63,6 +94,7 @@ async function saveRecording() {
   form.append('file', wavBlob, `${state.audio_id}.wav`);
   await fetch('/api/save', { method: 'POST', body: form });
   await fetchNext();
+  await refreshStatus();
 }
 
 async function convertToWav(blob) {
@@ -99,18 +131,37 @@ function encodeWAV(samples, sampleRate) {
   return buffer;
 }
 
+document.getElementById('prepareBtn').onclick = () => runAction('/api/prepare', { text_path: document.getElementById('prepareTextPath').value });
+document.getElementById('trainBtn').onclick = () => runAction('/api/train', {
+  epochs: Number(document.getElementById('epochs').value),
+  base_ckpt: document.getElementById('baseCkpt').value,
+});
+document.getElementById('exportBtn').onclick = () => runAction('/api/export', { ckpt: document.getElementById('exportCkpt').value });
+document.getElementById('testBtn').onclick = () => runAction('/api/test', {
+  model: document.getElementById('testModel').value,
+  text: document.getElementById('testText').value,
+  out: document.getElementById('testOut').value,
+});
+document.getElementById('doctorBtn').onclick = () => runAction('/api/doctor', { auto_fix: document.getElementById('doctorFix').checked });
+
 document.getElementById('start').onclick = startRecording;
 document.getElementById('stop').onclick = stopRecording;
 document.getElementById('save').onclick = saveRecording;
-document.getElementById('repeat').onclick = async () => { await fetch('/api/repeat', {method:'POST'}); render(); };
+document.getElementById('repeat').onclick = async () => { await api('/api/repeat', { method: 'POST' }); renderPrompt(); };
 document.getElementById('bad').onclick = async () => {
-  await fetch('/api/bad', {
+  await api('/api/bad', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ audio_id: state.audio_id, text: state.text }),
   });
   await fetchNext();
+  await refreshStatus();
 };
-document.getElementById('back').onclick = async () => { const r = await fetch('/api/back',{method:'POST'}); state = await r.json(); render(); };
+document.getElementById('back').onclick = async () => { state = await api('/api/back',{method:'POST'}); renderPrompt(); await refreshStatus(); };
 
-(async () => { await initAudio(); await fetchNext(); })();
+(async () => {
+  await initAudio();
+  await fetchNext();
+  await refreshStatus();
+  setInterval(refreshStatus, 2000);
+})();

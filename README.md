@@ -29,6 +29,22 @@ python scripts/05_test_voice.py --model voices_out/ru_RU-ddn_vladimir-medium.onn
 python scripts/06_doctor.py --project ddn_vladimir --auto-fix
 ```
 
+## Графическая оболочка (единая панель)
+
+Теперь `record` открывает единую GUI-панель, где доступны **все этапы** пайплайна: подготовка, запись, обучение, экспорт, тест синтеза и doctor.
+
+```bash
+python app/main.py record --project ddn_vladimir --port 8765
+```
+
+В интерфейсе:
+- блок статуса и фоновых задач;
+- форма подготовки датасета по пути к `.txt`;
+- студия записи фраз;
+- запуск обучения и экспорта ONNX;
+- тест синтеза в WAV;
+- doctor-проверка с `auto-fix`.
+
 ## Структура проекта
 
 - `app/main.py` — единый CLI (`prepare / record / train / export / test / doctor`)

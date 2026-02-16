@@ -3,25 +3,69 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Vladimir Recording Studio</title>
+  <title>Vladimir TTS Studio GUI</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
   <main>
-    <h1>Recording Studio</h1>
-    <div id="progress"></div>
-    <div id="line" class="line"></div>
-    <div class="meters"><div id="level" class="level"></div></div>
-    <div id="timer">00:00</div>
-    <div class="buttons">
-      <button id="start">Start recording</button>
-      <button id="stop">Stop</button>
-      <button id="save">Save & Next</button>
-      <button id="repeat">Repeat</button>
-      <button id="bad">Mark bad</button>
-      <button id="back">Back</button>
-    </div>
-    <audio id="preview" controls></audio>
+    <h1>Vladimir TTS Studio</h1>
+    <p id="projectInfo"></p>
+
+    <section class="card">
+      <h2>Статус</h2>
+      <div id="status"></div>
+      <pre id="taskResult"></pre>
+    </section>
+
+    <section class="card">
+      <h2>1) Подготовка датасета</h2>
+      <label>Путь к txt <input id="prepareTextPath" placeholder="data/input_texts/news.txt" /></label>
+      <button id="prepareBtn">Подготовить</button>
+    </section>
+
+    <section class="card">
+      <h2>2) Запись фраз</h2>
+      <div id="progress"></div>
+      <div id="line" class="line"></div>
+      <div class="meters"><div id="level" class="level"></div></div>
+      <div id="timer">00:00</div>
+      <div class="buttons">
+        <button id="start">Start recording</button>
+        <button id="stop">Stop</button>
+        <button id="save">Save & Next</button>
+        <button id="repeat">Repeat</button>
+        <button id="bad">Mark bad</button>
+        <button id="back">Back</button>
+      </div>
+      <audio id="preview" controls></audio>
+    </section>
+
+    <section class="card">
+      <h2>3) Обучение</h2>
+      <label>Epochs <input id="epochs" type="number" value="50" min="1" /></label>
+      <label>Base ckpt (опционально) <input id="baseCkpt" placeholder="models/ru_RU-dmitri-medium.ckpt" /></label>
+      <button id="trainBtn">Запустить обучение</button>
+    </section>
+
+    <section class="card">
+      <h2>4) Экспорт ONNX</h2>
+      <label>Ckpt (опционально) <input id="exportCkpt" placeholder="data/projects/.../runs/...ckpt" /></label>
+      <button id="exportBtn">Экспортировать</button>
+    </section>
+
+    <section class="card">
+      <h2>5) Тест синтеза</h2>
+      <label>Модель ONNX <input id="testModel" placeholder="voices_out/ru_RU-project-medium.onnx" /></label>
+      <label>Текст <input id="testText" value="Привет! Это тест синтеза." /></label>
+      <label>Выходной WAV <input id="testOut" value="voices_out/test_gui.wav" /></label>
+      <button id="testBtn">Синтезировать</button>
+    </section>
+
+    <section class="card">
+      <h2>6) Doctor</h2>
+      <label><input id="doctorFix" type="checkbox" /> auto-fix</label>
+      <button id="doctorBtn">Проверить проект</button>
+    </section>
   </main>
   <script src="/app.js"></script>
 </body>
