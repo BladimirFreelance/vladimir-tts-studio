@@ -9,6 +9,23 @@
 5. Тест синтеза
 6. Диагностика (`doctor`)
 
+## Авто-установка зависимостей (рекомендуется для PyCharm Terminal)
+
+Теперь можно запустить один скрипт, который создаст `.venv`, обновит `pip`, установит зависимости проекта, `piper-tts` и PyTorch:
+
+```bash
+python scripts/00_setup_env.py
+```
+
+Полезные варианты:
+
+```bash
+python scripts/00_setup_env.py --torch cu121    # CUDA 12.1 сборка PyTorch
+python scripts/00_setup_env.py --torch auto     # сначала CUDA, затем fallback на CPU
+python scripts/00_setup_env.py --torch skip     # пропустить torch
+python scripts/00_setup_env.py --no-venv        # ставить в текущее окружение
+```
+
 ## Быстрый старт (PyCharm / обычный `python`)
 
 ```bash
