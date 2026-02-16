@@ -1,0 +1,4 @@
+projects_root: data/projects
+input_texts_root: data/input_texts
+voices_out_root: voices_out
+runs_root: runs

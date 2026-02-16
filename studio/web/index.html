@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vladimir Recording Studio</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main>
+    <h1>Recording Studio</h1>
+    <div id="progress"></div>
+    <div id="line" class="line"></div>
+    <div class="meters"><div id="level" class="level"></div></div>
+    <div id="timer">00:00</div>
+    <div class="buttons">
+      <button id="start">Start recording</button>
+      <button id="stop">Stop</button>
+      <button id="save">Save & Next</button>
+      <button id="repeat">Repeat</button>
+      <button id="bad">Mark bad</button>
+      <button id="back">Back</button>
+    </div>
+    <audio id="preview" controls></audio>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
