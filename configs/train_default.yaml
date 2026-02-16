@@ -1,0 +1,28 @@
+project_defaults:
+  sample_rate: 22050
+  channels: 1
+  bit_depth: 16
+  min_duration_sec: 1.0
+  max_duration_sec: 12.0
+  use_warmstart_if_found: true
+
+training:
+  max_epochs: 50
+  batch_size: 16
+  learning_rate: 0.0002
+  validation_split: 0.05
+  phoneme_type: espeak
+  espeak_voice: ru
+  precision: 32
+
+text:
+  min_chars: 6
+  max_chars: 180
+  replacements:
+    "—": "-"
+    "–": "-"
+    "«": "\""
+    "»": "\""
+    "…": "..."
+  expand_common_abbreviations: true
+  split_regex: "(?<=[.!?])\\s+"

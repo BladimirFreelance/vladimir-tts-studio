@@ -1,0 +1,8 @@
+body { font-family: Arial, sans-serif; background:#f4f7fa; margin:0; }
+main { max-width:900px; margin:20px auto; background:white; padding:20px; border-radius:10px; }
+.line { font-size:30px; min-height:80px; margin:15px 0; }
+.buttons { display:flex; gap:10px; flex-wrap:wrap; }
+button { padding:10px 14px; font-size:16px; cursor:pointer; }
+.meters { width:100%; background:#ddd; height:12px; border-radius:6px; overflow:hidden; margin:12px 0; }
+.level { height:100%; width:0%; background:#2e8b57; }
+#timer { font-weight:bold; margin-bottom: 10px; }
