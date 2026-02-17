@@ -126,6 +126,24 @@ def build_router(project_dir: Path) -> APIRouter:
             raise HTTPException(status_code=409, detail="Уже выполняется другая задача")
         return JSONResponse({"ok": True})
 
+    @router.post("/api/prepare/upload")
+    async def upload_prepare_text(file: UploadFile) -> JSONResponse:
+        filename = Path(file.filename or "").name
+        if not filename:
+            raise HTTPException(status_code=400, detail="Имя файла отсутствует")
+        if Path(filename).suffix.lower() != ".txt":
+            raise HTTPException(status_code=400, detail="Разрешены только .txt файлы")
+
+        data = await file.read()
+        if not data:
+            raise HTTPException(status_code=400, detail="Файл пустой")
+
+        input_dir = project_dir / "input_texts"
+        input_dir.mkdir(parents=True, exist_ok=True)
+        dst = input_dir / filename
+        dst.write_bytes(data)
+        return JSONResponse({"ok": True, "text_path": str(dst)})
+
     @router.post("/api/train")
     def train(payload: dict[str, Any]) -> JSONResponse:
         epochs = int(payload.get("epochs", 50))
