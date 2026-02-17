@@ -63,7 +63,7 @@ python scripts/06_doctor.py --project ddn_vladimir --auto-fix
 Теперь `record` открывает единую GUI-панель, где доступны **все этапы** пайплайна: подготовка, запись, обучение, экспорт, тест синтеза и doctor.
 
 ```bash
-python app/main.py record --project ddn_vladimir --port 8765
+python -m app.main record --project ddn_vladimir --port 8765
 ```
 
 В интерфейсе:
