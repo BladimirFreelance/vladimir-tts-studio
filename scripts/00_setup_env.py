@@ -26,13 +26,22 @@ def run_capture(cmd: list[str]) -> str | None:
 
 
 def resolve_pip(venv_dir: Path) -> list[str]:
-    if os.name == "nt":
-        pip_path = venv_dir / "Scripts" / "pip.exe"
-    else:
-        pip_path = venv_dir / "bin" / "pip"
+    """
+    Возвращает команду для pip, привязанного к указанному venv.
 
-    if pip_path.exists():
-        return [str(pip_path)]
+    На Windows вызов `pip.exe` из одного окружения, когда активировано другое,
+    может падать с ошибкой вида "To modify pip, please run ... python -m pip".
+    Поэтому приоритетно вызываем pip через python интерпретатор самого venv.
+    """
+    if os.name == "nt":
+        venv_python = venv_dir / "Scripts" / "python.exe"
+    else:
+        venv_python = venv_dir / "bin" / "python"
+
+    if venv_python.exists():
+        return [str(venv_python), "-m", "pip"]
+
+    # fallback, если структура venv неожиданная
     return [sys.executable, "-m", "pip"]
 
 
