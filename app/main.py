@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import argparse
 import logging
+import sys
 from pathlib import Path
+
+if __package__ in (None, ""):
+    # Поддержка запуска как `python app/main.py ...` без конфликта с внешним
+    # пакетом `app`, установленным в окружении.
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.doctor import run_doctor
 from studio.server import run_server
