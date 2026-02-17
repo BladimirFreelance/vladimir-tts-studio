@@ -9,7 +9,7 @@ import wave
 from pathlib import Path
 from typing import Any, Callable
 
-from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from app.doctor import run_doctor
@@ -234,7 +234,7 @@ def build_router(project_dir: Path) -> APIRouter:
         return JSONResponse({"ok": True})
 
     @router.post("/api/save")
-    async def save(audio_id: str, text: str, file: UploadFile) -> JSONResponse:
+    async def save(audio_id: str = Form(...), text: str = Form(...), file: UploadFile = File(...)) -> JSONResponse:
         prompts = safe_prompts()
         if not audio_id:
             raise HTTPException(status_code=400, detail="audio_id is required")

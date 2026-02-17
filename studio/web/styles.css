@@ -12,3 +12,5 @@ input { width:100%; box-sizing:border-box; margin-top:4px; padding:8px 9px; bord
 .level { height:100%; width:0%; background:#2e8b57; transition:width .1s linear; }
 #timer { font-weight:bold; margin-bottom: 10px; }
 #taskResult { white-space: pre-wrap; background:#0f172a; color:#d6e2ff; border-radius:8px; padding:12px; min-height:44px; }
+
+.hint { margin: 10px 0 8px; color:#475467; font-size:13px; line-height:1.4; }
