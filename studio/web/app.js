@@ -4,6 +4,7 @@ let chunks = [];
 let stream = null;
 let startedAt = null;
 let timerHandle = null;
+let recordedBlob = null;
 
 async function api(path, options = {}) {
   const resp = await fetch(path, options);
@@ -72,8 +73,15 @@ async function initAudio() {
 
 function startRecording() {
   chunks = [];
+  recordedBlob = null;
   mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
   mediaRecorder.ondataavailable = e => chunks.push(e.data);
+  mediaRecorder.onstop = () => {
+    if (!chunks.length) return;
+    recordedBlob = new Blob(chunks, { type: 'audio/webm' });
+    document.getElementById('preview').src = URL.createObjectURL(recordedBlob);
+    document.getElementById('preview').load();
+  };
   mediaRecorder.start();
   startedAt = Date.now();
   timerHandle = setInterval(() => {
@@ -92,16 +100,28 @@ function stopRecording() {
 }
 
 async function saveRecording() {
-  if (!chunks.length || !state.audio_id) return;
-  const blob = new Blob(chunks, { type: 'audio/webm' });
-  document.getElementById('preview').src = URL.createObjectURL(blob);
+  if (!recordedBlob || !state.audio_id) {
+    alert('Сначала запишите и остановите фразу, затем сохраните её.');
+    return;
+  }
 
-  const wavBlob = await convertToWav(blob);
+  const wavBlob = await convertToWav(recordedBlob);
   const form = new FormData();
   form.append('audio_id', state.audio_id);
   form.append('text', state.text);
   form.append('file', wavBlob, `${state.audio_id}.wav`);
-  await fetch('/api/save', { method: 'POST', body: form });
+  const resp = await fetch('/api/save', { method: 'POST', body: form });
+  const payload = await resp.json();
+  if (!resp.ok) {
+    throw new Error(payload.detail || JSON.stringify(payload));
+  }
+
+  recordedBlob = null;
+  chunks = [];
+  document.getElementById('preview').removeAttribute('src');
+  document.getElementById('preview').load();
+  document.getElementById('timer').innerText = '00:00';
+
   await fetchNext();
   await refreshStatus();
 }
@@ -169,7 +189,13 @@ document.getElementById('doctorBtn').onclick = () => runAction('/api/doctor', { 
 
 document.getElementById('start').onclick = startRecording;
 document.getElementById('stop').onclick = stopRecording;
-document.getElementById('save').onclick = saveRecording;
+document.getElementById('save').onclick = async () => {
+  try {
+    await saveRecording();
+  } catch (err) {
+    alert(err.message);
+  }
+};
 document.getElementById('repeat').onclick = async () => { await api('/api/repeat', { method: 'POST' }); renderPrompt(); };
 document.getElementById('bad').onclick = async () => {
   await api('/api/bad', {
