@@ -47,6 +47,15 @@ async function runAction(path, payload) {
   }
 }
 
+async function uploadPrepareText(file) {
+  const form = new FormData();
+  form.append('file', file);
+  const resp = await fetch('/api/prepare/upload', { method: 'POST', body: form });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
+  return data;
+}
+
 async function initAudio() {
   stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const ctx = new AudioContext();
@@ -132,6 +141,20 @@ function encodeWAV(samples, sampleRate) {
 }
 
 document.getElementById('prepareBtn').onclick = () => runAction('/api/prepare', { text_path: document.getElementById('prepareTextPath').value });
+document.getElementById('pickTextFileBtn').onclick = () => document.getElementById('prepareTextFile').click();
+document.getElementById('prepareTextFile').onchange = async (event) => {
+  const [file] = event.target.files || [];
+  if (!file) return;
+  try {
+    const result = await uploadPrepareText(file);
+    document.getElementById('prepareTextPath').value = result.text_path;
+    await refreshStatus();
+  } catch (err) {
+    alert(err.message);
+  } finally {
+    event.target.value = '';
+  }
+};
 document.getElementById('trainBtn').onclick = () => runAction('/api/train', {
   epochs: Number(document.getElementById('epochs').value),
   base_ckpt: document.getElementById('baseCkpt').value,
