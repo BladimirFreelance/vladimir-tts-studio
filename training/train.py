@@ -54,9 +54,9 @@ def resolve_train_base_command() -> list[str]:
             return [sys.executable, "-m", cli_module]
 
     raise RuntimeError(
-        "Не найден модуль обучения Piper. Текущее окружение содержит runtime piper-tts, "
-        "но не training-компоненты. Установите training-сборку Piper или укажите команду "
-        "через PIPER_TRAIN_CMD (пример: python -m piper_train)."
+        "Не найден модуль обучения Piper (piper.train.vits или piper_train). "
+        "Запустите scripts/00_setup_env.py --with-piper-training, "
+        "либо укажите команду через PIPER_TRAIN_CMD (пример: python -m piper_train)."
     )
 
 
@@ -80,7 +80,9 @@ def detect_supported_gpu_or_raise() -> None:
             cuda_version = getattr(torch.version, "cuda", "unknown")
             raise RuntimeError(
                 "Обнаружен GPU '%s' (compute capability %s.%s), но текущая сборка PyTorch/CUDA его не поддерживает. "
-                "Установите совместимую версию PyTorch или используйте другой GPU. (torch CUDA=%s)"
+                "Установите совместимую версию PyTorch или запустите обучение на CPU. "
+                "Пример: CUDA_VISIBLE_DEVICES='' python scripts/03_train.py --project <name>. "
+                "(torch CUDA=%s)"
                 % (device_name, capability[0], capability[1], cuda_version)
             ) from exc
         raise
@@ -89,9 +91,11 @@ def detect_supported_gpu_or_raise() -> None:
 def run_training(
     project_dir: Path,
     epochs: int,
-    base_ckpt: str | None = None,
+    vocoder_warmstart_ckpt: str | None = None,
     config_path: Path | None = None,
     batch_size: int | None = None,
+    *,
+    base_ckpt: str | None = None,
 ) -> None:
     detect_supported_gpu_or_raise()
     ensure_espeakbridge_import()
@@ -136,7 +140,7 @@ def run_training(
     cmd += ["--model.batch_size", str(resolved_batch_size)]
     cmd += ["--model.learning_rate", str(cfg["training"]["learning_rate"])]
 
-    selected_ckpt = base_ckpt or (
+    selected_ckpt = vocoder_warmstart_ckpt or base_ckpt or (
         discover_warmstart()
         if cfg["project_defaults"].get("use_warmstart_if_found")
         else None
