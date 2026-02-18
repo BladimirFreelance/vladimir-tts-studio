@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 
 from dataset.audio_tools import convert_wav, inspect_wav
-from dataset.manifest import read_manifest, resolve_audio_path
+from dataset.manifest import read_manifest, resolve_audio_path, write_manifest
 
 LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +40,43 @@ def check_imports() -> list[str]:
     return issues
 
 
-def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int | str]:
+def _coerce_manifest_path(project_dir: Path, audio_rel: str) -> str | None:
+    candidate = audio_rel.replace("\\", "/").strip()
+    if not candidate:
+        return None
+
+    raw = Path(candidate)
+    if raw.is_absolute():
+        try:
+            rel = raw.resolve().relative_to(project_dir.resolve())
+            candidate = rel.as_posix()
+        except Exception:
+            return None
+
+    normalized = Path(candidate)
+    if any(part == ".." for part in normalized.parts):
+        return None
+
+    if normalized.suffix.lower() == ".wav":
+        normalized = normalized.with_suffix("")
+    return normalized.as_posix()
+
+
+def _duration_warning(total_sec: float) -> str:
+    if total_sec < 30 * 60:
+        return (
+            "Training data is likely insufficient (<30 minutes). "
+            "Mumbling voices are often caused by too little data."
+        )
+    if total_sec < 60 * 60:
+        return (
+            "Training data is below the recommended 60 minutes. "
+            "Mumbling risk is still elevated."
+        )
+    return ""
+
+
+def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int | float | str]:
     manifest = project_dir / "metadata" / "train.csv"
     try:
         rows = read_manifest(manifest)
@@ -80,12 +116,15 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
     fixed = 0
     invalid_paths = 0
     sample_rate_mismatch = 0
+    total_duration_sec = 0.0
+    updated_rows: list[tuple[str, str]] = []
+    path_fixed = 0
 
     project_root = project_dir.resolve()
 
-    for audio_rel, _text in rows:
-        rel_path = Path(audio_rel)
-        if rel_path.is_absolute() or any(part == ".." for part in rel_path.parts):
+    for audio_rel, text in rows:
+        normalized_rel = _coerce_manifest_path(project_dir, audio_rel)
+        if normalized_rel is None:
             LOGGER.warning(
                 "Invalid manifest audio path (must be relative to project root): %s",
                 audio_rel,
@@ -93,7 +132,17 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
             invalid_paths += 1
             continue
 
-        wav_path = resolve_audio_path(project_dir, audio_rel)
+        if normalized_rel != audio_rel:
+            if auto_fix:
+                LOGGER.info("Auto-fixed manifest path: %s -> %s", audio_rel, normalized_rel)
+                path_fixed += 1
+            else:
+                LOGGER.warning("Non-normalized manifest path: %s", audio_rel)
+
+        rel_path = Path(normalized_rel)
+        updated_rows.append((normalized_rel, text))
+
+        wav_path = resolve_audio_path(project_dir, normalized_rel)
 
         try:
             wav_path.resolve().relative_to(project_root)
@@ -109,6 +158,7 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
             missing += 1
             continue
         info = inspect_wav(wav_path)
+        total_duration_sec += info.duration_sec
         needs_fix = not (
             info.sample_rate == 22050
             and info.channels == 1
@@ -130,13 +180,24 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
             info = inspect_wav(wav_path)
         if 1 <= info.duration_sec <= 12:
             ok += 1
+
+    if auto_fix and updated_rows and path_fixed > 0:
+        write_manifest(manifest, updated_rows)
+
+    duration_warning = _duration_warning(total_duration_sec)
+    if duration_warning:
+        LOGGER.warning(duration_warning)
+
     return {
         "rows": len(rows),
         "ok": ok,
         "missing": missing,
         "fixed": fixed,
+        "path_fixed": path_fixed,
         "invalid_paths": invalid_paths,
         "sample_rate_mismatch": sample_rate_mismatch,
+        "duration_min": round(total_duration_sec / 60.0, 2),
+        "duration_warning": duration_warning,
         "error": "",
     }
 
@@ -150,13 +211,15 @@ def run_doctor(
 
     stats = check_manifest(project_dir, auto_fix=auto_fix)
     LOGGER.info(
-        "manifest rows=%s ok=%s missing=%s fixed=%s invalid_paths=%s sample_rate_mismatch=%s",
+        "manifest rows=%s ok=%s missing=%s fixed=%s path_fixed=%s invalid_paths=%s sample_rate_mismatch=%s duration_min=%s",
         stats["rows"],
         stats["ok"],
         stats["missing"],
         stats["fixed"],
+        stats.get("path_fixed", 0),
         stats.get("invalid_paths", 0),
         stats.get("sample_rate_mismatch", 0),
+        stats.get("duration_min", 0.0),
     )
 
     if require_audio and stats["ok"] == 0:
