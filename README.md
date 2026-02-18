@@ -27,7 +27,10 @@ python scripts/00_setup_env.py --torch directml  # AMD/Intel GPU на Windows (�
 python scripts/00_setup_env.py --torch skip      # пропустить torch
 python scripts/00_setup_env.py --no-venv         # ставить в текущее окружение
 python scripts/00_setup_env.py --without-piper-training  # пропустить установку Piper training-модулей
+python scripts/00_setup_env.py --require-piper-training   # упасть с ошибкой, если training-модули не установились
 ```
+
+> По умолчанию setup не прерывается, если `piper_train`/`piper.train.vits` не удалось установить (часто из-за отсутствия wheel `piper-phonemize` для вашей платформы/Python). Runtime-синтез через `piper-tts` при этом остается рабочим.
 
 ## Обучение на GPU в Windows (без WSL)
 
@@ -148,6 +151,9 @@ set PIPER_TRAIN_CMD=python -m piper_train
 
 # 2) или переустановить окружение (по умолчанию training ставится автоматически)
 python scripts/00_setup_env.py
+
+# 3) если нужно, чтобы setup обязательно падал при отсутствии training-модулей
+python scripts/00_setup_env.py --require-piper-training
 ```
 
 После этого снова запустите обучение из студии.

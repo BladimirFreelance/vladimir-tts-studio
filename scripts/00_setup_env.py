@@ -15,6 +15,11 @@ def run(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
     subprocess.run(cmd, check=True, env=env)
 
 
+def run_result(cmd: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    print(f"\n>>> {' '.join(cmd)}")
+    return subprocess.run(cmd, check=False, env=env, capture_output=True, text=True)
+
+
 def run_capture(cmd: list[str]) -> str | None:
     try:
         completed = subprocess.run(cmd, check=False, capture_output=True, text=True)
@@ -203,7 +208,13 @@ def module_available(python_cmd: list[str], module_name: str) -> bool:
     return completed.returncode == 0
 
 
-def install_piper_training(pip_cmd: list[str], python_cmd: list[str], source: str) -> None:
+def install_piper_training(
+    pip_cmd: list[str],
+    python_cmd: list[str],
+    source: str,
+    *,
+    allow_missing: bool = False,
+) -> bool:
     print("[i] Устанавливаю Piper training-модули...")
     attempts = [source]
 
@@ -221,17 +232,27 @@ def install_piper_training(pip_cmd: list[str], python_cmd: list[str], source: st
             attempts.append(candidate)
 
     for candidate in attempts:
-        try:
-            print(f"[i] Попытка установки Piper training из: {candidate}")
-            run(pip_cmd + ["install", candidate])
-        except subprocess.CalledProcessError:
+        print(f"[i] Попытка установки Piper training из: {candidate}")
+        completed = run_result(pip_cmd + ["install", candidate])
+        if completed.stdout:
+            print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+        if completed.returncode != 0:
+            if completed.stderr:
+                print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
             print(f"[!] Не удалось установить источник: {candidate}")
 
         if module_available(python_cmd, "piper.train.vits") or module_available(python_cmd, "piper_train"):
             print("[i] Piper training-модули доступны (piper.train.vits или piper_train).")
-            return
+            return True
 
-    raise RuntimeError("Не удалось установить Piper training-модули (piper.train.vits/piper_train)")
+    msg = "Не удалось установить Piper training-модули (piper.train.vits/piper_train)"
+    if allow_missing:
+        print(f"[!] {msg}")
+        print("[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет.")
+        print("[!] Если нужно завершать установку с ошибкой, добавьте флаг --require-piper-training.")
+        return False
+
+    raise RuntimeError(msg)
 
 
 def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str]) -> None:
@@ -282,6 +303,11 @@ def parse_args() -> argparse.Namespace:
         default="piper-tts[train] @ git+https://github.com/OHF-Voice/piper1-gpl.git",
         help="Источник для установки training-модулей Piper",
     )
+    parser.add_argument(
+        "--require-piper-training",
+        action="store_true",
+        help="Завершать setup с ошибкой, если training-модули Piper не удалось установить",
+    )
     return parser.parse_args()
 
 
@@ -316,7 +342,12 @@ def main() -> int:
         run(pip_cmd + ["install", *args.extras])
 
     if not args.without_piper_training:
-        install_piper_training(pip_cmd, python_cmd, args.piper_training_source)
+        install_piper_training(
+            pip_cmd,
+            python_cmd,
+            args.piper_training_source,
+            allow_missing=not args.require_piper_training,
+        )
 
     print_system_hints()
 
