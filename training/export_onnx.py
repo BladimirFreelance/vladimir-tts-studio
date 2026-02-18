@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 
 from training.utils import ensure_espeakbridge_import
 from pathlib import Path
@@ -21,7 +22,7 @@ def export_onnx(project: str, project_dir: Path, ckpt: Path | None = None) -> tu
     out_dir.mkdir(parents=True, exist_ok=True)
     onnx_path = out_dir / f"ru_RU-{project}-medium.onnx"
 
-    cmd = ["python", "-m", "piper.export_onnx", "--checkpoint", str(chosen), "--output", str(onnx_path)]
+    cmd = [sys.executable, "-m", "piper.export_onnx", "--checkpoint", str(chosen), "--output", str(onnx_path)]
     subprocess.run(cmd, check=True)
 
     json_path = onnx_path.with_suffix(".onnx.json")
@@ -37,7 +38,7 @@ def export_onnx(project: str, project_dir: Path, ckpt: Path | None = None) -> tu
     smoke = out_dir / "export_smoke_test.wav"
     subprocess.run(
         [
-            "python",
+            sys.executable,
             "-m",
             "training.infer",
             "--model",
