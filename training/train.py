@@ -25,6 +25,14 @@ def discover_warmstart() -> str | None:
         Path("models") / "ru_RU-dmitri-medium.ckpt",
         Path.home() / ".local" / "share" / "piper" / "ru_RU-dmitri-medium.ckpt",
     ]
+
+    appdata = os.getenv("APPDATA")
+    local_appdata = os.getenv("LOCALAPPDATA")
+    if appdata:
+        possible.append(Path(appdata) / "piper" / "ru_RU-dmitri-medium.ckpt")
+    if local_appdata:
+        possible.append(Path(local_appdata) / "piper" / "ru_RU-dmitri-medium.ckpt")
+
     for item in possible:
         if item.exists():
             return str(item)
