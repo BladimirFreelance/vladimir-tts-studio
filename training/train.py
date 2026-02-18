@@ -53,8 +53,11 @@ def run_training(project_dir: Path, epochs: int, base_ckpt: str | None = None, c
     runs_dir = project_dir / "runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
 
-    train_cmd = os.getenv("PIPER_TRAIN_CMD", "python -m piper.train")
-    cmd = [*shlex.split(train_cmd), "fit"]
+    train_cmd = os.getenv("PIPER_TRAIN_CMD")
+    if train_cmd:
+        cmd = [*shlex.split(train_cmd), "fit"]
+    else:
+        cmd = [sys.executable, "-m", "piper.train", "fit"]
     cmd += ["--data.config_path", str(data_config)]
     cmd += ["--data.dataset", "jsonl"]
     cmd += ["--max_epochs", str(epochs)]
