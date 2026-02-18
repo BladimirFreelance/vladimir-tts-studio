@@ -42,7 +42,6 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
     try:
         rows = read_manifest(manifest)
     except FileNotFoundError:
-      codex/fix-filenotfounderror-in-doctor-script-wow2a8
         if "<" in project_dir.name or ">" in project_dir.name:
             LOGGER.error("Project name looks like a placeholder: %s. Use a real project name instead of <name>.", project_dir.name)
         LOGGER.error("Manifest not found: %s", manifest)
@@ -51,16 +50,7 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
     except ValueError as exc:
         LOGGER.error("Invalid manifest format in %s: %s", manifest, exc)
         return {"rows": 0, "ok": 0, "missing": 0, "fixed": 0, "error": "manifest_invalid"}
-      project_hint = ""
-        if "<" in project_dir.name or ">" in project_dir.name:
-            project_hint = " Use a real project name instead of the '<name>' placeholder."
-        LOGGER.error("Manifest not found: %s.%s", manifest, project_hint)
-        LOGGER.info("Run 'prepare' first to generate metadata/train.csv for this project.")
-        return {"rows": 0, "ok": 0, "missing": 0, "fixed": 0}
-    except ValueError as exc:
-        LOGGER.error("Invalid manifest format in %s: %s", manifest, exc)
-        return {"rows": 0, "ok": 0, "missing": 0, "fixed": 0}
-    main
+
     ok = 0
     missing = 0
     fixed = 0
