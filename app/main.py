@@ -45,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_test.add_argument("--model", required=True)
     s_test.add_argument("--text", required=True)
     s_test.add_argument("--out", required=True)
+    s_test.add_argument("--mode", choices=["text", "espeak"], default="text")
 
     s_doctor = sub.add_parser("doctor")
     s_doctor.add_argument("--project", required=True)
@@ -75,7 +76,7 @@ def main() -> None:
         onnx, cfg = export_onnx(args.project, Path("data/projects") / args.project, Path(args.ckpt) if args.ckpt else None)
         logging.info("Exported %s and %s", onnx, cfg)
     elif args.cmd == "test":
-        synth_with_piper(Path(args.model), args.text, Path(args.out))
+        synth_with_piper(Path(args.model), args.text, Path(args.out), mode=args.mode)
     elif args.cmd == "doctor":
         code = run_doctor(Path("data/projects") / args.project, auto_fix=args.auto_fix)
         raise SystemExit(code)
