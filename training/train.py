@@ -27,15 +27,18 @@ def discover_warmstart() -> str | None:
 
 
 def resolve_train_base_command() -> list[str]:
+    """Resolve Piper training entrypoint for the current environment."""
     train_cmd = os.getenv("PIPER_TRAIN_CMD")
     if train_cmd:
         return shlex.split(train_cmd)
 
-    if importlib.util.find_spec("piper.train.vits") is not None:
-        return [sys.executable, "-m", "piper.train"]
-
-    if importlib.util.find_spec("piper_train") is not None:
-        return [sys.executable, "-m", "piper_train"]
+    module_candidates = [
+        ("piper.train.vits", "piper.train"),
+        ("piper_train", "piper_train"),
+    ]
+    for probe_module, cli_module in module_candidates:
+        if importlib.util.find_spec(probe_module) is not None:
+            return [sys.executable, "-m", cli_module]
 
     raise RuntimeError(
         "Не найден модуль обучения Piper. Текущее окружение содержит runtime piper-tts, "

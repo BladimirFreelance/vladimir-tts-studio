@@ -56,6 +56,23 @@ def test_resolve_train_base_command_uses_piper_train_module(monkeypatch: pytest.
     assert resolve_train_base_command() == [__import__("sys").executable, "-m", "piper.train"]
 
 
+def test_resolve_train_base_command_prefers_piper_train_when_both_layouts_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
+
+    calls: list[str] = []
+
+    def fake_find_spec(name: str):
+        calls.append(name)
+        if name in {"piper.train.vits", "piper_train"}:
+            return object()
+        raise AssertionError(name)
+
+    monkeypatch.setattr("training.train.importlib.util.find_spec", fake_find_spec)
+
+    assert resolve_train_base_command() == [__import__("sys").executable, "-m", "piper.train"]
+    assert calls[0] == "piper.train.vits"
+
+
 def test_resolve_train_base_command_falls_back_to_piper_train(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
 
