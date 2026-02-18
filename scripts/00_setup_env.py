@@ -230,29 +230,13 @@ def detect_windows_gpu_vendor() -> str | None:
 
 
 def auto_detect_torch_mode() -> str:
-    system = platform.system().lower()
     cuda = detect_nvidia_cuda_version()
-    if cuda:
-        gpu_name = detect_nvidia_gpu_name() or ""
-        major, minor = cuda
-        # Ampere (например RTX 3060) обычно стабильнее на cu121 wheel,
-        # а при более новых драйверах можно пробовать cu124.
-        if "rtx 3060" in gpu_name:
-            return "cu121"
-        if major > 12 or (major == 12 and minor >= 4):
-            return "cu124"
-        if major >= 12:
-            return "cu121"
+    gpu_name = detect_nvidia_gpu_name() or ""
+    if cuda and "rtx 3060" in gpu_name:
+        print("[auto] Обнаружена RTX 3060: выбираю сборку PyTorch cu121")
+        return "cu121"
 
-    if system == "windows":
-        vendor = detect_windows_gpu_vendor()
-        if vendor in {"amd", "intel"}:
-            return "directml"
-        return "cpu"
-
-    if system == "linux" and Path("/opt/rocm").exists():
-        return "rocm"
-
+    print("[auto] RTX 3060 не обнаружена: выбираю CPU-сборку PyTorch")
     return "cpu"
 
 
