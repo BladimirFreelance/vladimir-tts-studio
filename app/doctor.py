@@ -7,7 +7,7 @@ import shutil
 from pathlib import Path
 
 from dataset.audio_tools import convert_wav, inspect_wav
-from dataset.manifest import read_manifest
+from dataset.manifest import read_manifest, resolve_audio_path
 
 LOGGER = logging.getLogger(__name__)
 
@@ -55,7 +55,7 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
     missing = 0
     fixed = 0
     for audio_rel, _text in rows:
-        wav_path = project_dir / audio_rel
+        wav_path = resolve_audio_path(project_dir, audio_rel)
         if not wav_path.exists():
             missing += 1
             continue

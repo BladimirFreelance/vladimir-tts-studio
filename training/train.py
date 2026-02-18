@@ -8,7 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from dataset.manifest import read_manifest
+from dataset.manifest import read_manifest, resolve_audio_path
 from training.utils import ensure_espeakbridge_import
 from utils import load_yaml, write_json
 
@@ -52,7 +52,7 @@ def run_training(project_dir: Path, epochs: int, base_ckpt: str | None = None, c
     cfg = load_yaml(config_path or Path("configs/train_default.yaml"))
     manifest = project_dir / "metadata" / "train.csv"
     rows = read_manifest(manifest)
-    missing = [audio for audio, _ in rows if not (project_dir / audio).exists()]
+    missing = [audio for audio, _ in rows if not resolve_audio_path(project_dir, audio).exists()]
     existing = len(rows) - len(missing)
     if existing <= 0:
         raise RuntimeError(

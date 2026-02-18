@@ -262,7 +262,7 @@ def build_router(project_dir: Path) -> APIRouter:
 
         rows = read_manifest(manifest_path) if manifest_path.exists() else []
         existing = {audio: txt for audio, txt in rows}
-        existing[f"recordings/wav_22050/{audio_id}.wav"] = text
+        existing[f"recordings/wav_22050/{audio_id}"] = text
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         with manifest_path.open("w", encoding="utf-8") as f:
             for audio_rel, text_row in existing.items():
