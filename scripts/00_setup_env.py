@@ -205,10 +205,20 @@ def module_available(python_cmd: list[str], module_name: str) -> bool:
 
 def install_piper_training(pip_cmd: list[str], python_cmd: list[str], source: str) -> None:
     print("[i] Устанавливаю Piper training-модули...")
-    attempts = [
-        source,
+    attempts = [source]
+
+    # Активный upstream переехал из rhasspy/piper в OHF-Voice/piper1-gpl.
+    # Добавляем совместимый fallback со встроенными train extras.
+    defaults = {
+        "piper-tts[train] @ git+https://github.com/OHF-Voice/piper1-gpl.git",
+        "piper-tts[train]",
+        "git+https://github.com/rhasspy/piper.git#subdirectory=src/python",
         "piper-train",
-    ]
+    }
+
+    for candidate in defaults:
+        if candidate not in attempts:
+            attempts.append(candidate)
 
     for candidate in attempts:
         try:
@@ -269,7 +279,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--piper-training-source",
-        default="git+https://github.com/rhasspy/piper.git#subdirectory=src/python",
+        default="piper-tts[train] @ git+https://github.com/OHF-Voice/piper1-gpl.git",
         help="Источник для установки training-модулей Piper",
     )
     return parser.parse_args()
