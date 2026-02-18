@@ -11,11 +11,12 @@ requires-python = ">=3.11"
 dependencies = [
   "fastapi>=0.112.0",
   "uvicorn>=0.30.0",
-  "pyyaml>=6.0.1",
-  "python-dotenv>=1.0.1",
-  "numpy>=1.26.0",
-  "scipy>=1.11.0",
-  "python-multipart>=0.0.9"
+  "python-multipart>=0.0.9",
+  "piper-tts",
+  "piper-train",
+  "torch",
+  "ffmpeg-python",
+  "espeak-ng"
 ]
 
 [tool.setuptools]
