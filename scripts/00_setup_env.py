@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+PIPER_GPL_REPO = "https://github.com/OHF-Voice/piper1-gpl.git"
+
 
 def run(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
     print(f"\n>>> {' '.join(cmd)}")
@@ -232,18 +234,73 @@ def detect_windows_gpu_vendor() -> str | None:
 def auto_detect_torch_mode() -> str:
     cuda = detect_nvidia_cuda_version()
     gpu_name = detect_nvidia_gpu_name() or ""
-    if cuda and "rtx 3060" in gpu_name:
-        print("[auto] Обнаружена RTX 3060: выбираю сборку PyTorch cu121")
+    if cuda:
+        major, minor = cuda
+        if (major, minor) >= (12, 4):
+            print("[auto] Обнаружен NVIDIA GPU (CUDA >= 12.4): выбираю cu124")
+            return "cu124"
+        if (major, minor) >= (12, 1):
+            print("[auto] Обнаружен NVIDIA GPU (CUDA >= 12.1): выбираю cu121")
+            return "cu121"
+        print("[auto] Обнаружен NVIDIA GPU, но версия CUDA < 12.1: выбираю CPU")
+        return "cpu"
+
+    if "nvidia" in gpu_name:
+        print("[auto] Обнаружен NVIDIA GPU: выбираю cu121")
         return "cu121"
 
-    print("[auto] RTX 3060 не обнаружена: выбираю CPU-сборку PyTorch")
+    vendor = detect_windows_gpu_vendor()
+    if vendor in {"amd", "intel"}:
+        print(f"[auto] Обнаружен {vendor.upper()} GPU на Windows: выбираю directml")
+        return "directml"
+
+    print("[auto] GPU не обнаружен: выбираю CPU-сборку PyTorch")
     return "cpu"
+
+
+def print_torch_summary(python_cmd: list[str]) -> None:
+    summary_code = (
+        "import torch;"
+        "print(f'torch={torch.__version__}');"
+        "print(f'cuda_available={torch.cuda.is_available()}');"
+        "print(f'torch_cuda_build={getattr(torch.version, \"cuda\", None)}')"
+    )
+    completed = run_result(python_cmd + ["-c", summary_code])
+    if completed.returncode != 0:
+        print("[!] Не удалось проверить установленный torch")
+        if completed.stderr:
+            print(completed.stderr)
 
 
 def module_available(python_cmd: list[str], module_name: str) -> bool:
     script = f"import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('{module_name}') else 1)"
     completed = subprocess.run(python_cmd + ["-c", script], check=False)
     return completed.returncode == 0
+
+
+def clone_or_update_piper_training_repo(target_dir: Path) -> None:
+    if target_dir.exists():
+        print(f"[i] Обновляю репозиторий Piper training: {target_dir}")
+        run(["git", "-C", str(target_dir), "fetch", "origin", "main"])
+        run(["git", "-C", str(target_dir), "reset", "--hard", "origin/main"])
+        return
+
+    target_dir.parent.mkdir(parents=True, exist_ok=True)
+    print(f"[i] Клонирую Piper training в: {target_dir}")
+    run(["git", "clone", PIPER_GPL_REPO, str(target_dir)])
+
+
+def verify_piper_training_install(python_cmd: list[str]) -> bool:
+    probe = (
+        "import importlib.util as u;"
+        "assert u.find_spec('piper.train.vits') is not None"
+    )
+    completed = run_result(python_cmd + ["-c", probe])
+    if completed.returncode != 0:
+        return False
+
+    help_cmd = run_result(python_cmd + ["-m", "piper.train", "--help"])
+    return help_cmd.returncode == 0
 
 
 def install_piper_training(
@@ -254,54 +311,55 @@ def install_piper_training(
     allow_missing: bool = False,
 ) -> bool:
     print("[i] Устанавливаю Piper training-модули...")
+    repo_dir = Path("third_party") / "piper1-gpl"
     attempts = [source]
+    editable_path = f"{repo_dir / 'src' / 'python'}[train]"
+    if editable_path not in attempts:
+        attempts.append(editable_path)
+    git_source = f"piper-tts[train] @ git+{PIPER_GPL_REPO}"
+    if git_source not in attempts:
+        attempts.append(git_source)
 
-    # Активный upstream переехал из rhasspy/piper в OHF-Voice/piper1-gpl.
-    # Добавляем совместимый fallback со встроенными train extras.
-    defaults = {
-        "piper-tts[train] @ git+https://github.com/OHF-Voice/piper1-gpl.git",
-        "piper-tts[train]",
-        "git+https://github.com/rhasspy/piper.git#subdirectory=src/python",
-        "piper-train",
-    }
-
-    for candidate in defaults:
-        if candidate not in attempts:
-            attempts.append(candidate)
+    try:
+        clone_or_update_piper_training_repo(repo_dir)
+    except subprocess.CalledProcessError:
+        print("[!] Не удалось обновить локальный clone piper1-gpl. Перехожу к pip git-install.")
 
     for candidate in attempts:
         print(f"[i] Попытка установки Piper training из: {candidate}")
-        completed = run_result(pip_cmd + ["install", candidate])
+        install_args = ["install", "-e", candidate] if "src/python" in candidate else ["install", candidate]
+        completed = run_result(pip_cmd + install_args)
         if completed.stdout:
             print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
         if completed.returncode != 0:
             if completed.stderr:
-                print(
-                    completed.stderr,
-                    end="" if completed.stderr.endswith("\n") else "\n",
-                )
+                print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
             print(f"[!] Не удалось установить источник: {candidate}")
+            continue
 
-        if module_available(python_cmd, "piper.train.vits") or module_available(
-            python_cmd, "piper_train"
-        ):
-            print(
-                "[i] Piper training-модули доступны (piper.train.vits или piper_train)."
-            )
+        if verify_piper_training_install(python_cmd):
+            print("[i] Piper training CLI доступен: python -m piper.train")
             return True
 
-    msg = "Не удалось установить Piper training-модули (piper.train.vits/piper_train)"
+    msg = "Не удалось установить Piper training-модули (требуется piper.train.vits и python -m piper.train)."
     if allow_missing:
         print(f"[!] {msg}")
         print(
             "[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет."
         )
         print(
-            "[!] Если нужно завершать установку с ошибкой, добавьте флаг --require-piper-training."
+            "[!] Для строгой проверки запустите: python scripts/00_setup_env.py --require-piper-training"
         )
         return False
 
-    raise RuntimeError(msg)
+    raise RuntimeError(
+        f"{msg}\n"
+        "Проверьте git/pip, затем повторите:\n"
+        "python scripts/00_setup_env.py --require-piper-training\n"
+        "Проверка вручную:\n"
+        "python -c \"import importlib.util as u; assert u.find_spec('piper.train.vits') is not None\"\n"
+        "python -m piper.train --help"
+    )
 
 
 def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str]) -> None:
@@ -360,6 +418,11 @@ def parse_args() -> argparse.Namespace:
         help="Не устанавливать training-модули Piper",
     )
     parser.add_argument(
+        "--with-piper-training",
+        action="store_true",
+        help="Явно включить установку training-модулей Piper (алиас к поведению по умолчанию)",
+    )
+    parser.add_argument(
         "--piper-training-source",
         default="piper-tts[train] @ git+https://github.com/OHF-Voice/piper1-gpl.git",
         help="Источник для установки training-модулей Piper",
@@ -378,6 +441,8 @@ def main() -> int:
         return 2
 
     args = parse_args()
+    if args.with_piper_training and args.without_piper_training:
+        raise SystemExit("Нельзя использовать одновременно --with-piper-training и --without-piper-training")
 
     repo_root = Path(__file__).resolve().parent.parent
     os.chdir(repo_root)
@@ -396,12 +461,14 @@ def main() -> int:
     run(pip_cmd + ["install", "-e", "."])
 
     install_torch(pip_cmd, args.torch)
+    print_torch_summary(python_cmd)
     install_piper_runtime(pip_cmd, python_cmd)
 
     if args.extras:
         run(pip_cmd + ["install", *args.extras])
 
-    if not args.without_piper_training:
+    install_training = args.with_piper_training or not args.without_piper_training
+    if install_training:
         install_piper_training(
             pip_cmd,
             python_cmd,
@@ -412,10 +479,10 @@ def main() -> int:
     print_system_hints()
 
     print("\nГотово. Рекомендуется проверить окружение:")
-    print("python scripts/06_doctor.py --project <project_name> --auto-fix")
-    if args.without_piper_training:
+    print("python scripts/06_doctor.py --project PROJECT_NAME --auto-fix")
+    if not install_training:
         print(
-            "[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py"
+            "[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py --with-piper-training"
         )
     return 0
 

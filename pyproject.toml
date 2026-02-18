@@ -13,8 +13,6 @@ dependencies = [
   "uvicorn>=0.30.0",
   "python-multipart>=0.0.9",
   "piper-tts",
-  "piper-train",
-  "torch",
   "ffmpeg-python",
   "espeak-ng"
 ]

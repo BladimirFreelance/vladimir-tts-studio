@@ -56,7 +56,7 @@ def test_run_training_uses_current_interpreter_by_default(
     monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
     monkeypatch.setattr(
         "training.train.importlib.util.find_spec",
-        lambda name: object() if name == "piper.train.vits" else None,
+        lambda name: object() if name == "piper.train" else None,
     )
     monkeypatch.setattr("training.train.subprocess.run", fake_run)
 
