@@ -75,23 +75,6 @@ python -m app.main record --project ddn_vladimir --port 8765
 - doctor-проверка с `auto-fix`.
 
 
-## Авто-разрешение конфликтов перед PR
-
-Если GitHub пишет `This branch has conflicts that must be resolved`, запустите:
-
-```bash
-python scripts/07_resolve_pr_conflicts.py
-```
-
-Скрипт (полностью автоматически):
-- подтягивает `origin/main`;
-- делает merge в текущую feature-ветку;
-- автоматически решает типовые конфликты в `training/train.py` и `tests/test_training_train.py` через стратегию `--ours`;
-- запускает проверки конфликт-маркеров и целевые тесты;
-- делает `git push` текущей ветки в `origin`.
-
-Если push не нужен, используйте `--no-push`.
-
 ## Структура проекта
 
 - `app/main.py` — единый CLI (`prepare / record / train / export / test / doctor`)
