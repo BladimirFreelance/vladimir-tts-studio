@@ -28,5 +28,7 @@ def split_to_segments(text: str, split_regex: str, max_chars: int) -> list[str]:
     return out
 
 
-def indexed_segments(segments: Iterable[str], prefix: str = "utt") -> list[tuple[str, str]]:
+def indexed_segments(
+    segments: Iterable[str], prefix: str = "utt"
+) -> list[tuple[str, str]]:
     return [(f"{prefix}_{idx:05d}", text) for idx, text in enumerate(segments, start=1)]

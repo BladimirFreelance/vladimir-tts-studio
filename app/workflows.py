@@ -9,12 +9,16 @@ from dataset.text_cleaner import normalize_text
 from utils import load_yaml
 
 
-def _resample_existing_audio(project_dir: Path, audio_ids: list[str], sample_rate: int = 22050) -> None:
+def _resample_existing_audio(
+    project_dir: Path, audio_ids: list[str], sample_rate: int = 22050
+) -> None:
     recordings_dir = project_dir / "recordings" / "wav_22050"
     for audio_id in audio_ids:
         wav_path = recordings_dir / f"{audio_id}.wav"
         raw_path = recordings_dir / audio_id
-        source = wav_path if wav_path.exists() else raw_path if raw_path.exists() else None
+        source = (
+            wav_path if wav_path.exists() else raw_path if raw_path.exists() else None
+        )
         if source is None:
             continue
 
@@ -24,7 +28,12 @@ def _resample_existing_audio(project_dir: Path, audio_ids: list[str], sample_rat
                 info = inspect_wav(source)
             except Exception:
                 info = None
-        if info and info.sample_rate == sample_rate and info.channels == 1 and info.bits_per_sample == 16:
+        if (
+            info
+            and info.sample_rate == sample_rate
+            and info.channels == 1
+            and info.bits_per_sample == 16
+        ):
             continue
 
         target = wav_path
@@ -48,15 +57,26 @@ def prepare_dataset(text_file: Path, project: str) -> None:
         replacements=cfg["text"]["replacements"],
         expand_abbreviations=cfg["text"].get("expand_common_abbreviations", True),
     )
-    segments = split_to_segments(cleaned, cfg["text"]["split_regex"], cfg["text"]["max_chars"])
+    segments = split_to_segments(
+        cleaned, cfg["text"]["split_regex"], cfg["text"]["max_chars"]
+    )
     indexed = indexed_segments(segments, prefix=project)
 
     prompts_path = project_dir / "prompts" / "segments.txt"
-    prompts_path.write_text("\n".join(f"{audio_id}|{text}" for audio_id, text in indexed) + "\n", encoding="utf-8")
+    prompts_path.write_text(
+        "\n".join(f"{audio_id}|{text}" for audio_id, text in indexed) + "\n",
+        encoding="utf-8",
+    )
     test20 = project_dir / "prompts" / "test_script_20.txt"
-    test20.write_text("\n".join(text for _id, text in indexed[:20]) + "\n", encoding="utf-8")
+    test20.write_text(
+        "\n".join(text for _id, text in indexed[:20]) + "\n", encoding="utf-8"
+    )
 
-    _resample_existing_audio(project_dir, [audio_id for audio_id, _text in indexed], sample_rate=22050)
+    _resample_existing_audio(
+        project_dir, [audio_id for audio_id, _text in indexed], sample_rate=22050
+    )
 
-    manifest_rows = [(f"recordings/wav_22050/{audio_id}", text) for audio_id, text in indexed]
+    manifest_rows = [
+        (f"recordings/wav_22050/{audio_id}", text) for audio_id, text in indexed
+    ]
     write_manifest(project_dir / "metadata" / "train.csv", manifest_rows)

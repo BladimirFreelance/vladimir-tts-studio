@@ -9,7 +9,14 @@ import pytest
 from app.doctor import check_imports, check_manifest, run_doctor
 
 
-def _write_wav(path: Path, *, sample_rate: int = 22050, channels: int = 1, sample_width: int = 2, frames: int = 22050) -> None:
+def _write_wav(
+    path: Path,
+    *,
+    sample_rate: int = 22050,
+    channels: int = 1,
+    sample_width: int = 2,
+    frames: int = 22050,
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with wave.open(str(path), "wb") as wav_file:
         wav_file.setnchannels(channels)
@@ -23,7 +30,9 @@ def test_check_imports_reports_missing_training_modules(monkeypatch):
         if name == "piper.espeakbridge":
             return object()
         if name == "torch":
-            return types.SimpleNamespace(__version__="0", cuda=types.SimpleNamespace(is_available=lambda: False))
+            return types.SimpleNamespace(
+                __version__="0", cuda=types.SimpleNamespace(is_available=lambda: False)
+            )
         raise ImportError(name)
 
     monkeypatch.setattr("app.doctor.importlib.import_module", fake_import)
@@ -35,7 +44,9 @@ def test_check_imports_reports_missing_training_modules(monkeypatch):
     assert any("Piper training modules not found" in issue for issue in issues)
 
 
-def test_check_manifest_handles_missing_manifest(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+def test_check_manifest_handles_missing_manifest(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
     stats = check_manifest(tmp_path / "<name>")
 
     assert stats == {
@@ -51,7 +62,9 @@ def test_check_manifest_handles_missing_manifest(tmp_path: Path, caplog: pytest.
     assert "Manifest not found" in caplog.text
 
 
-def test_check_manifest_reports_missing_files_invalid_paths_and_sample_rate(tmp_path: Path, caplog: pytest.LogCaptureFixture):
+def test_check_manifest_reports_missing_files_invalid_paths_and_sample_rate(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
     project_dir = tmp_path / "demo"
     manifest_path = project_dir / "metadata" / "train.csv"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
@@ -64,7 +77,9 @@ def test_check_manifest_reports_missing_files_invalid_paths_and_sample_rate(tmp_
     )
 
     _write_wav(project_dir / "recordings" / "wav_22050" / "good.wav", sample_rate=22050)
-    _write_wav(project_dir / "recordings" / "wav_22050" / "wrong_sr.wav", sample_rate=16000)
+    _write_wav(
+        project_dir / "recordings" / "wav_22050" / "wrong_sr.wav", sample_rate=16000
+    )
 
     stats = check_manifest(project_dir)
 
@@ -78,7 +93,9 @@ def test_check_manifest_reports_missing_files_invalid_paths_and_sample_rate(tmp_
     assert "Sample rate mismatch" in caplog.text
 
 
-def test_run_doctor_returns_error_code_when_manifest_missing(monkeypatch, tmp_path: Path):
+def test_run_doctor_returns_error_code_when_manifest_missing(
+    monkeypatch, tmp_path: Path
+):
     monkeypatch.setattr("app.doctor.check_imports", lambda: [])
 
     code = run_doctor(tmp_path / "demo", require_audio=True)
@@ -86,7 +103,9 @@ def test_run_doctor_returns_error_code_when_manifest_missing(monkeypatch, tmp_pa
     assert code == 2
 
 
-def test_run_doctor_logs_prepare_hint_when_manifest_missing(monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture):
+def test_run_doctor_logs_prepare_hint_when_manifest_missing(
+    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
     monkeypatch.setattr("app.doctor.check_imports", lambda: [])
 
     _code = run_doctor(tmp_path / "demo", require_audio=True)

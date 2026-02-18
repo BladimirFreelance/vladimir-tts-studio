@@ -19,7 +19,10 @@ def check_imports() -> list[str]:
     except Exception:
         issues.append("ImportError: piper.espeakbridge (fix: pip install piper-tts)")
 
-    if importlib.util.find_spec("piper.train.vits") is None and importlib.util.find_spec("piper_train") is None:
+    if (
+        importlib.util.find_spec("piper.train.vits") is None
+        and importlib.util.find_spec("piper_train") is None
+    ):
         issues.append(
             "Piper training modules not found (fix: install Piper training build or set PIPER_TRAIN_CMD, e.g. python -m piper_train)"
         )
@@ -43,9 +46,14 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
         rows = read_manifest(manifest)
     except FileNotFoundError:
         if "<" in project_dir.name or ">" in project_dir.name:
-            LOGGER.error("Project name looks like a placeholder: %s. Use a real project name instead of <name>.", project_dir.name)
+            LOGGER.error(
+                "Project name looks like a placeholder: %s. Use a real project name instead of <name>.",
+                project_dir.name,
+            )
         LOGGER.error("Manifest not found: %s", manifest)
-        LOGGER.info("Run 'prepare' first to generate metadata/train.csv for this project.")
+        LOGGER.info(
+            "Run 'prepare' first to generate metadata/train.csv for this project."
+        )
         return {
             "rows": 0,
             "ok": 0,
@@ -78,7 +86,10 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
     for audio_rel, _text in rows:
         rel_path = Path(audio_rel)
         if rel_path.is_absolute() or any(part == ".." for part in rel_path.parts):
-            LOGGER.warning("Invalid manifest audio path (must be relative to project root): %s", audio_rel)
+            LOGGER.warning(
+                "Invalid manifest audio path (must be relative to project root): %s",
+                audio_rel,
+            )
             invalid_paths += 1
             continue
 
@@ -87,7 +98,9 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
         try:
             wav_path.resolve().relative_to(project_root)
         except ValueError:
-            LOGGER.warning("Invalid manifest audio path (escapes project root): %s", audio_rel)
+            LOGGER.warning(
+                "Invalid manifest audio path (escapes project root): %s", audio_rel
+            )
             invalid_paths += 1
             continue
 
@@ -96,10 +109,18 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
             missing += 1
             continue
         info = inspect_wav(wav_path)
-        needs_fix = not (info.sample_rate == 22050 and info.channels == 1 and info.bits_per_sample == 16)
+        needs_fix = not (
+            info.sample_rate == 22050
+            and info.channels == 1
+            and info.bits_per_sample == 16
+        )
         if info.sample_rate != 22050:
             sample_rate_mismatch += 1
-            LOGGER.warning("Sample rate mismatch for %s: %s Hz (expected 22050 Hz)", wav_path.name, info.sample_rate)
+            LOGGER.warning(
+                "Sample rate mismatch for %s: %s Hz (expected 22050 Hz)",
+                wav_path.name,
+                info.sample_rate,
+            )
         if needs_fix and auto_fix:
             tmp = wav_path.with_name(f"{wav_path.stem}.fixed.wav")
             method = convert_wav(wav_path, tmp)
@@ -120,7 +141,9 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
     }
 
 
-def run_doctor(project_dir: Path, auto_fix: bool = False, require_audio: bool = True) -> int:
+def run_doctor(
+    project_dir: Path, auto_fix: bool = False, require_audio: bool = True
+) -> int:
     issues = check_imports()
     for issue in issues:
         LOGGER.warning(issue)
@@ -138,10 +161,16 @@ def run_doctor(project_dir: Path, auto_fix: bool = False, require_audio: bool = 
 
     if require_audio and stats["ok"] == 0:
         if stats.get("error") == "manifest_missing":
-            LOGGER.error("No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --text <path_to_txt> --project <project_name>")
+            LOGGER.error(
+                "No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --text <path_to_txt> --project <project_name>"
+            )
         elif stats.get("error") == "manifest_invalid":
-            LOGGER.error("Manifest format is invalid. Fix metadata/train.csv and run doctor again.")
+            LOGGER.error(
+                "Manifest format is invalid. Fix metadata/train.csv and run doctor again."
+            )
         else:
-            LOGGER.error("0 utterances ready for training. Record audio and run doctor again.")
+            LOGGER.error(
+                "0 utterances ready for training. Record audio and run doctor again."
+            )
         return 2
     return 1 if issues else 0

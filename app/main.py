@@ -61,9 +61,13 @@ def main() -> None:
 
     if args.cmd == "prepare":
         prepare_dataset(Path(args.text), args.project)
-        code = run_doctor(Path("data/projects") / args.project, auto_fix=False, require_audio=False)
+        code = run_doctor(
+            Path("data/projects") / args.project, auto_fix=False, require_audio=False
+        )
         if code != 0:
-            logging.warning("Prepare finished with doctor warnings. Continue to recording step.")
+            logging.warning(
+                "Prepare finished with doctor warnings. Continue to recording step."
+            )
     elif args.cmd == "record":
         run_server(Path("data/projects") / args.project, port=args.port)
     elif args.cmd == "train":
@@ -74,7 +78,11 @@ def main() -> None:
             batch_size=args.batch_size,
         )
     elif args.cmd == "export":
-        onnx, cfg = export_onnx(args.project, Path("data/projects") / args.project, Path(args.ckpt) if args.ckpt else None)
+        onnx, cfg = export_onnx(
+            args.project,
+            Path("data/projects") / args.project,
+            Path(args.ckpt) if args.ckpt else None,
+        )
         logging.info("Exported %s and %s", onnx, cfg)
     elif args.cmd == "test":
         synth_with_piper(
