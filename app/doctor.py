@@ -37,9 +37,19 @@ def check_imports() -> list[str]:
     return issues
 
 
-def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int]:
+def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int | str]:
     manifest = project_dir / "metadata" / "train.csv"
-    rows = read_manifest(manifest)
+    try:
+        rows = read_manifest(manifest)
+    except FileNotFoundError:
+        if "<" in project_dir.name or ">" in project_dir.name:
+            LOGGER.error("Project name looks like a placeholder: %s. Use a real project name instead of <name>.", project_dir.name)
+        LOGGER.error("Manifest not found: %s", manifest)
+        LOGGER.info("Run 'prepare' first to generate metadata/train.csv for this project.")
+        return {"rows": 0, "ok": 0, "missing": 0, "fixed": 0, "error": "manifest_missing"}
+    except ValueError as exc:
+        LOGGER.error("Invalid manifest format in %s: %s", manifest, exc)
+        return {"rows": 0, "ok": 0, "missing": 0, "fixed": 0, "error": "manifest_invalid"}
     ok = 0
     missing = 0
     fixed = 0
@@ -59,7 +69,7 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int]:
             info = inspect_wav(wav_path)
         if 1 <= info.duration_sec <= 12:
             ok += 1
-    return {"rows": len(rows), "ok": ok, "missing": missing, "fixed": fixed}
+    return {"rows": len(rows), "ok": ok, "missing": missing, "fixed": fixed, "error": ""}
 
 
 def run_doctor(project_dir: Path, auto_fix: bool = False, require_audio: bool = True) -> int:
@@ -71,6 +81,11 @@ def run_doctor(project_dir: Path, auto_fix: bool = False, require_audio: bool = 
     LOGGER.info("manifest rows=%s ok=%s missing=%s fixed=%s", stats["rows"], stats["ok"], stats["missing"], stats["fixed"])
 
     if require_audio and stats["ok"] == 0:
-        LOGGER.error("0 utterances ready for training. Record audio and run doctor again.")
+        if stats.get("error") == "manifest_missing":
+            LOGGER.error("No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --text <path_to_txt> --project <project_name>")
+        elif stats.get("error") == "manifest_invalid":
+            LOGGER.error("Manifest format is invalid. Fix metadata/train.csv and run doctor again.")
+        else:
+            LOGGER.error("0 utterances ready for training. Record audio and run doctor again.")
         return 2
     return 1 if issues else 0

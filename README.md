@@ -26,6 +26,7 @@ python scripts/00_setup_env.py --torch cu121     # CUDA 12.1 сборка PyTorc
 python scripts/00_setup_env.py --torch directml  # AMD/Intel GPU на Windows (без WSL)
 python scripts/00_setup_env.py --torch skip      # пропустить torch
 python scripts/00_setup_env.py --no-venv         # ставить в текущее окружение
+python scripts/00_setup_env.py --with-piper-training  # дополнительно поставить Piper training-модули
 ```
 
 ## Обучение на GPU в Windows (без WSL)
@@ -93,6 +94,8 @@ python -m app.main record --project ddn_vladimir --port 8765
 
 `python scripts/06_doctor.py --project <name> --auto-fix`
 
+> Важно: используйте реальное имя проекта вместо `<name>`, например `--project ddn_vladimir`.
+
 Проверяет:
 
 - `import piper.espeakbridge`
@@ -125,7 +128,7 @@ pip install piper-tts
 
 ### `0 utterances`
 
-Вы записали 0 файлов или manifest указывает на несуществующие пути. Запустите:
+Вы записали 0 файлов или manifest указывает на несуществующие пути. Если вы запустили doctor до `prepare`, сначала создайте проект и manifest.
 
 ```bash
 python scripts/06_doctor.py --project <project> --auto-fix
@@ -143,7 +146,8 @@ python scripts/06_doctor.py --project <project> --auto-fix
 # 1) указать явную команду обучения
 set PIPER_TRAIN_CMD=python -m piper_train
 
-# 2) или установить сборку Piper с train-модулями
+# 2) или установить training-модули автоматически
+python scripts/00_setup_env.py --with-piper-training
 ```
 
 После этого снова запустите обучение из студии.
