@@ -83,13 +83,14 @@ python -m app.main record --project ddn_vladimir --port 8765
 python scripts/07_resolve_pr_conflicts.py
 ```
 
-Скрипт:
+Скрипт (полностью автоматически):
 - подтягивает `origin/main`;
 - делает merge в текущую feature-ветку;
 - автоматически решает типовые конфликты в `training/train.py` и `tests/test_training_train.py` через стратегию `--ours`;
-- запускает проверки конфликт-маркеров и целевые тесты.
+- запускает проверки конфликт-маркеров и целевые тесты;
+- делает `git push` текущей ветки в `origin`.
 
-После успешного выполнения останется только `git push` вашей feature-ветки.
+Если push не нужен, используйте `--no-push`.
 
 ## Структура проекта
 

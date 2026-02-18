@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import subprocess
-import sys
 from pathlib import Path
 
 DEFAULT_CONFLICT_PATHS = [
@@ -19,6 +18,11 @@ def run(cmd: list[str], *, check: bool = True, capture_output: bool = False) -> 
 def current_branch() -> str:
     out = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True)
     return out.stdout.strip()
+
+
+def working_tree_clean() -> bool:
+    out = run(["git", "status", "--porcelain"], capture_output=True)
+    return not bool(out.stdout.strip())
 
 
 def conflicted_paths() -> set[str]:
@@ -55,7 +59,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Синхронизирует текущую ветку с origin/main, автоматически разрешает типовые конфликты "
-            "в training/train.py и tests/test_training_train.py, и запускает проверки перед PR."
+            "в training/train.py и tests/test_training_train.py, запускает проверки и (по умолчанию) делает push."
         )
     )
     parser.add_argument("--base", default="origin/main", help="Базовая ветка для merge (по умолчанию origin/main)")
@@ -70,6 +74,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Не запускать pytest/проверку конфликт-маркеров",
     )
+    parser.add_argument(
+        "--no-push",
+        action="store_true",
+        help="Не делать автоматический push в origin текущей ветки",
+    )
     return parser.parse_args()
 
 
@@ -77,6 +86,10 @@ def main() -> int:
     args = parse_args()
     repo_root = Path(__file__).resolve().parents[1]
     print(f"[i] Repo: {repo_root}")
+
+    if not working_tree_clean():
+        print("[!] Рабочее дерево не чистое. Сначала закоммитьте/уберите локальные изменения.")
+        return 2
 
     branch = current_branch()
     if branch in {"main", "master"}:
@@ -99,7 +112,10 @@ def main() -> int:
         run(["rg", "-n", "^(<<<<<<<|=======|>>>>>>>)", "-S"], check=False)
         run(["pytest", "-q", "tests/test_training_train.py", "tests/test_training_utils.py", "tests/test_doctor.py"])
 
-    print("[✓] Ветка синхронизирована и проверена. Можно открывать/обновлять PR.")
+    if not args.no_push:
+        run(["git", "push", "-u", "origin", branch])
+
+    print("[✓] Готово: ветка синхронизирована, конфликты обработаны, проверки пройдены, push выполнен.")
     return 0
 
 
