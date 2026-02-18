@@ -17,7 +17,7 @@ def test_normalize_text_can_skip_abbreviation_expansion() -> None:
 
 
 def test_remove_garbage_lines_filters_short_and_broken_lines() -> None:
-    lines = ["ok", "   длинная строка   ", "валидно", "битая\uFFFDстрока"]
+    lines = ["ok", "   длинная строка   ", "валидно", "битая\ufffdстрока"]
 
     result = remove_garbage_lines(lines, min_chars=6)
 

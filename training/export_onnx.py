@@ -9,13 +9,19 @@ from pathlib import Path
 
 
 def find_latest_ckpt(project_dir: Path) -> Path:
-    ckpts = sorted(project_dir.glob("runs/**/*.ckpt"), key=lambda p: p.stat().st_mtime, reverse=True)
+    ckpts = sorted(
+        project_dir.glob("runs/**/*.ckpt"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
     if not ckpts:
         raise FileNotFoundError("No ckpt found in project runs folder")
     return ckpts[0]
 
 
-def export_onnx(project: str, project_dir: Path, ckpt: Path | None = None) -> tuple[Path, Path]:
+def export_onnx(
+    project: str, project_dir: Path, ckpt: Path | None = None
+) -> tuple[Path, Path]:
     ensure_espeakbridge_import()
     chosen = ckpt or find_latest_ckpt(project_dir)
     out_dir = Path("voices_out")
@@ -41,7 +47,9 @@ def export_onnx(project: str, project_dir: Path, ckpt: Path | None = None) -> tu
         "phoneme_type": "espeak",
         "espeak": {"voice": "ru"},
     }
-    json_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    json_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     smoke = out_dir / "export_smoke_test.wav"
     subprocess.run(

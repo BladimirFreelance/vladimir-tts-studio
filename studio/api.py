@@ -43,7 +43,11 @@ def build_router(project_dir: Path) -> APIRouter:
     def safe_prompts() -> list[str]:
         if not prompts_file.exists():
             return []
-        return [line.strip() for line in prompts_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+        return [
+            line.strip()
+            for line in prompts_file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
 
     def load_idx() -> int:
         if not index_path.exists():
@@ -52,7 +56,9 @@ def build_router(project_dir: Path) -> APIRouter:
 
     def save_idx(index: int) -> None:
         index_path.parent.mkdir(parents=True, exist_ok=True)
-        index_path.write_text(json.dumps({"index": index}, ensure_ascii=False), encoding="utf-8")
+        index_path.write_text(
+            json.dumps({"index": index}, ensure_ascii=False), encoding="utf-8"
+        )
 
     def parse_prompt(idx: int) -> tuple[str, str]:
         prompts = safe_prompts()
@@ -65,13 +71,29 @@ def build_router(project_dir: Path) -> APIRouter:
         with task_lock:
             if task_state["running"]:
                 return False
-            task_state.update({"running": True, "name": name, "status": "running", "message": "", "error": "", "last_result": {}})
+            task_state.update(
+                {
+                    "running": True,
+                    "name": name,
+                    "status": "running",
+                    "message": "",
+                    "error": "",
+                    "last_result": {},
+                }
+            )
 
         def _thread_runner() -> None:
             try:
                 result = worker() or {}
                 with task_lock:
-                    task_state.update({"running": False, "status": "done", "message": "Готово", "last_result": result})
+                    task_state.update(
+                        {
+                            "running": False,
+                            "status": "done",
+                            "message": "Готово",
+                            "last_result": result,
+                        }
+                    )
             except Exception as exc:  # noqa: BLE001
                 LOGGER.exception("Task %s failed", name)
                 with task_lock:
@@ -109,7 +131,15 @@ def build_router(project_dir: Path) -> APIRouter:
         prompts = safe_prompts()
         idx = load_idx()
         audio_id, text = parse_prompt(idx)
-        return JSONResponse({"audio_id": audio_id, "text": text, "index": idx + 1, "total": len(prompts), "done": idx >= len(prompts)})
+        return JSONResponse(
+            {
+                "audio_id": audio_id,
+                "text": text,
+                "index": idx + 1,
+                "total": len(prompts),
+                "done": idx >= len(prompts),
+            }
+        )
 
     @router.post("/api/prepare")
     def prepare(payload: dict[str, Any]) -> JSONResponse:
@@ -162,7 +192,9 @@ def build_router(project_dir: Path) -> APIRouter:
         ckpt_raw = payload.get("ckpt") or None
 
         def worker() -> dict[str, Any]:
-            onnx, cfg = export_onnx(project_dir.name, project_dir, Path(ckpt_raw) if ckpt_raw else None)
+            onnx, cfg = export_onnx(
+                project_dir.name, project_dir, Path(ckpt_raw) if ckpt_raw else None
+            )
             return {"onnx": str(onnx), "config": str(cfg)}
 
         if not run_task("export", worker):
@@ -210,7 +242,14 @@ def build_router(project_dir: Path) -> APIRouter:
         prompts = safe_prompts()
         idx = load_idx()
         audio_id, text = parse_prompt(idx)
-        return JSONResponse({"audio_id": audio_id, "text": text, "index": idx + 1, "total": len(prompts)})
+        return JSONResponse(
+            {
+                "audio_id": audio_id,
+                "text": text,
+                "index": idx + 1,
+                "total": len(prompts),
+            }
+        )
 
     @router.post("/api/back")
     def back() -> JSONResponse:
@@ -218,7 +257,14 @@ def build_router(project_dir: Path) -> APIRouter:
         idx = max(load_idx() - 1, 0)
         save_idx(idx)
         audio_id, text = parse_prompt(idx)
-        return JSONResponse({"audio_id": audio_id, "text": text, "index": idx + 1, "total": len(prompts)})
+        return JSONResponse(
+            {
+                "audio_id": audio_id,
+                "text": text,
+                "index": idx + 1,
+                "total": len(prompts),
+            }
+        )
 
     @router.post("/api/bad")
     def mark_bad(payload: dict[str, Any]) -> JSONResponse:
@@ -234,7 +280,9 @@ def build_router(project_dir: Path) -> APIRouter:
         return JSONResponse({"ok": True})
 
     @router.post("/api/save")
-    async def save(audio_id: str = Form(...), text: str = Form(...), file: UploadFile = File(...)) -> JSONResponse:
+    async def save(
+        audio_id: str = Form(...), text: str = Form(...), file: UploadFile = File(...)
+    ) -> JSONResponse:
         prompts = safe_prompts()
         if not audio_id:
             raise HTTPException(status_code=400, detail="audio_id is required")

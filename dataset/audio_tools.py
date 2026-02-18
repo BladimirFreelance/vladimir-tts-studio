@@ -25,7 +25,12 @@ def inspect_wav(path: Path) -> WavInfo:
         frames = w.getnframes()
     bits = sample_width * 8
     duration = frames / float(sample_rate) if sample_rate else 0.0
-    return WavInfo(sample_rate=sample_rate, channels=channels, bits_per_sample=bits, duration_sec=duration)
+    return WavInfo(
+        sample_rate=sample_rate,
+        channels=channels,
+        bits_per_sample=bits,
+        duration_sec=duration,
+    )
 
 
 def analyze_quality(path: Path) -> dict[str, float | bool]:
@@ -33,7 +38,11 @@ def analyze_quality(path: Path) -> dict[str, float | bool]:
     samples = data.astype(np.float32)
     peak = float(np.max(np.abs(samples))) if samples.size else 0.0
     rms = float(np.sqrt(np.mean(np.square(samples)))) if samples.size else 0.0
-    clipping = bool(np.any(np.abs(samples) >= np.iinfo(data.dtype).max)) if samples.size else False
+    clipping = (
+        bool(np.any(np.abs(samples) >= np.iinfo(data.dtype).max))
+        if samples.size
+        else False
+    )
     noise_floor = float(np.percentile(np.abs(samples), 10)) if samples.size else 0.0
     return {
         "sample_rate": float(sr),

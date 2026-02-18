@@ -9,7 +9,9 @@ from training.utils import ensure_espeakbridge_import
 from pathlib import Path
 
 
-def _resolve_onnx_config_path(model_path: Path, config_path: Path | None = None) -> Path:
+def _resolve_onnx_config_path(
+    model_path: Path, config_path: Path | None = None
+) -> Path:
     if config_path is not None:
         return config_path
     return model_path.with_suffix(".onnx.json")
@@ -49,7 +51,9 @@ def _to_espeak_phonemes(text: str, voice: str = "ru") -> str:
     except FileNotFoundError as exc:
         raise RuntimeError("espeak-ng не найден в PATH") from exc
     except subprocess.CalledProcessError as exc:
-        raise RuntimeError(f"espeak-ng завершился с кодом {exc.returncode}: {exc.stderr.strip()}") from exc
+        raise RuntimeError(
+            f"espeak-ng завершился с кодом {exc.returncode}: {exc.stderr.strip()}"
+        ) from exc
 
     phonemes = " ".join(result.stdout.split())
     if not phonemes:
@@ -57,7 +61,9 @@ def _to_espeak_phonemes(text: str, voice: str = "ru") -> str:
     return phonemes
 
 
-def _prepare_input(model_path: Path, text: str, mode: str, config_path: Path | None = None) -> str:
+def _prepare_input(
+    model_path: Path, text: str, mode: str, config_path: Path | None = None
+) -> str:
     if mode == "text":
         return text
 
@@ -86,7 +92,9 @@ def synth_with_piper(
     try:
         from piper.voice import PiperVoice
     except Exception as exc:
-        raise RuntimeError("Не удалось импортировать piper.voice. Установите piper-tts") from exc
+        raise RuntimeError(
+            "Не удалось импортировать piper.voice. Установите piper-tts"
+        ) from exc
 
     input_text = _prepare_input(model_path, text, mode, config_path=config_path)
 
@@ -104,7 +112,9 @@ def synth_with_piper(
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True)
-    parser.add_argument("--config", help="Путь к ONNX JSON (по умолчанию <model>.onnx.json)")
+    parser.add_argument(
+        "--config", help="Путь к ONNX JSON (по умолчанию <model>.onnx.json)"
+    )
     parser.add_argument("--text", required=True)
     parser.add_argument("--out", default="voices_out/test_voice.wav")
     parser.add_argument("--mode", choices=["text", "espeak"], default="text")

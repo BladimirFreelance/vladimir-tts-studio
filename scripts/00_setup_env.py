@@ -15,7 +15,9 @@ def run(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
     subprocess.run(cmd, check=True, env=env)
 
 
-def run_result(cmd: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def run_result(
+    cmd: list[str], *, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     print(f"\n>>> {' '.join(cmd)}")
     return subprocess.run(cmd, check=False, env=env, capture_output=True, text=True)
 
@@ -77,23 +79,73 @@ def install_torch(pip_cmd: list[str], mode: str) -> None:
         return
 
     if mode == "cpu":
-        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"])
+        run(
+            pip_cmd
+            + [
+                "install",
+                "torch",
+                "torchvision",
+                "torchaudio",
+                "--index-url",
+                "https://download.pytorch.org/whl/cpu",
+            ]
+        )
         return
 
     if mode == "cu121":
-        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cu121"])
+        run(
+            pip_cmd
+            + [
+                "install",
+                "torch",
+                "torchvision",
+                "torchaudio",
+                "--index-url",
+                "https://download.pytorch.org/whl/cu121",
+            ]
+        )
         return
 
     if mode == "cu124":
-        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cu124"])
+        run(
+            pip_cmd
+            + [
+                "install",
+                "torch",
+                "torchvision",
+                "torchaudio",
+                "--index-url",
+                "https://download.pytorch.org/whl/cu124",
+            ]
+        )
         return
 
     if mode == "rocm":
-        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/rocm6.1"])
+        run(
+            pip_cmd
+            + [
+                "install",
+                "torch",
+                "torchvision",
+                "torchaudio",
+                "--index-url",
+                "https://download.pytorch.org/whl/rocm6.1",
+            ]
+        )
         return
 
     if mode == "directml":
-        run(pip_cmd + ["install", "torch", "torchvision", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"])
+        run(
+            pip_cmd
+            + [
+                "install",
+                "torch",
+                "torchvision",
+                "torchaudio",
+                "--index-url",
+                "https://download.pytorch.org/whl/cpu",
+            ]
+        )
         run(pip_cmd + ["install", "torch-directml"])
         return
 
@@ -132,7 +184,9 @@ def install_torch_auto(pip_cmd: list[str]) -> None:
         except subprocess.CalledProcessError:
             print(f"[auto] Режим '{candidate}' не установился.")
 
-    raise subprocess.CalledProcessError(returncode=1, cmd=[*pip_cmd, "install", "torch"])
+    raise subprocess.CalledProcessError(
+        returncode=1, cmd=[*pip_cmd, "install", "torch"]
+    )
 
 
 def detect_nvidia_cuda_version() -> tuple[int, int] | None:
@@ -238,18 +292,29 @@ def install_piper_training(
             print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
         if completed.returncode != 0:
             if completed.stderr:
-                print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
+                print(
+                    completed.stderr,
+                    end="" if completed.stderr.endswith("\n") else "\n",
+                )
             print(f"[!] Не удалось установить источник: {candidate}")
 
-        if module_available(python_cmd, "piper.train.vits") or module_available(python_cmd, "piper_train"):
-            print("[i] Piper training-модули доступны (piper.train.vits или piper_train).")
+        if module_available(python_cmd, "piper.train.vits") or module_available(
+            python_cmd, "piper_train"
+        ):
+            print(
+                "[i] Piper training-модули доступны (piper.train.vits или piper_train)."
+            )
             return True
 
     msg = "Не удалось установить Piper training-модули (piper.train.vits/piper_train)"
     if allow_missing:
         print(f"[!] {msg}")
-        print("[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет.")
-        print("[!] Если нужно завершать установку с ошибкой, добавьте флаг --require-piper-training.")
+        print(
+            "[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет."
+        )
+        print(
+            "[!] Если нужно завершать установку с ошибкой, добавьте флаг --require-piper-training."
+        )
         return False
 
     raise RuntimeError(msg)
@@ -259,23 +324,35 @@ def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str]) -> None:
     print("[i] Устанавливаю Piper runtime (piper-tts)...")
     run(pip_cmd + ["install", "piper-tts"])
     if not module_available(python_cmd, "piper.espeakbridge"):
-        raise RuntimeError("Piper runtime установлен некорректно: модуль piper.espeakbridge не найден")
+        raise RuntimeError(
+            "Piper runtime установлен некорректно: модуль piper.espeakbridge не найден"
+        )
+
 
 def print_system_hints() -> None:
     if shutil.which("ffmpeg") is None:
-        print("\n[!] ffmpeg не найден в PATH. Для авто-исправления аудио doctor-ом установите ffmpeg.")
+        print(
+            "\n[!] ffmpeg не найден в PATH. Для авто-исправления аудио doctor-ом установите ffmpeg."
+        )
     if shutil.which("espeak-ng") is None:
-        print("[!] espeak-ng не найден в PATH. Для piper/espeakbridge установите espeak-ng.")
+        print(
+            "[!] espeak-ng не найден в PATH. Для piper/espeakbridge установите espeak-ng."
+        )
     if os.name == "nt":
-        print("[i] Для обучения на Windows без WSL рекомендуется установить свежий драйвер GPU (NVIDIA/AMD/Intel).")
-
+        print(
+            "[i] Для обучения на Windows без WSL рекомендуется установить свежий драйвер GPU (NVIDIA/AMD/Intel)."
+        )
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Автоматическая установка зависимостей проекта vladimir-piper-voice-lab"
     )
-    parser.add_argument("--venv", default=".venv", help="Папка виртуального окружения (по умолчанию .venv)")
+    parser.add_argument(
+        "--venv",
+        default=".venv",
+        help="Папка виртуального окружения (по умолчанию .venv)",
+    )
     parser.add_argument(
         "--no-venv",
         action="store_true",
@@ -309,7 +386,6 @@ def parse_args() -> argparse.Namespace:
         help="Завершать setup с ошибкой, если training-модули Piper не удалось установить",
     )
     return parser.parse_args()
-
 
 
 def main() -> int:
@@ -354,7 +430,9 @@ def main() -> int:
     print("\nГотово. Рекомендуется проверить окружение:")
     print("python scripts/06_doctor.py --project <project_name> --auto-fix")
     if args.without_piper_training:
-        print("[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py")
+        print(
+            "[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py"
+        )
     return 0
 
 

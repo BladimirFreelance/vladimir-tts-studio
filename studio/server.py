@@ -10,7 +10,12 @@ from fastapi.staticfiles import StaticFiles
 from studio.api import build_router
 
 
-def run_server(project_dir: Path, host: str = "127.0.0.1", port: int = 8765, open_browser: bool = True) -> None:
+def run_server(
+    project_dir: Path,
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    open_browser: bool = True,
+) -> None:
     app = FastAPI(title="Vladimir Piper Voice Studio")
     app.include_router(build_router(project_dir))
 

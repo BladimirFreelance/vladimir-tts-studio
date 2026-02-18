@@ -72,7 +72,10 @@ def detect_supported_gpu_or_raise() -> None:
         torch.cuda.synchronize(device_index)
     except RuntimeError as exc:
         message = str(exc).lower()
-        if "no kernel image is available" in message or "not compatible with the current pytorch installation" in message:
+        if (
+            "no kernel image is available" in message
+            or "not compatible with the current pytorch installation" in message
+        ):
             capability = torch.cuda.get_device_capability(device_index)
             cuda_version = getattr(torch.version, "cuda", "unknown")
             raise RuntimeError(
@@ -95,7 +98,11 @@ def run_training(
     cfg = load_yaml(config_path or Path("configs/train_default.yaml"))
     manifest = project_dir / "metadata" / "train.csv"
     rows = read_manifest(manifest)
-    missing = [audio for audio, _ in rows if not resolve_audio_path(project_dir, audio).exists()]
+    missing = [
+        audio
+        for audio, _ in rows
+        if not resolve_audio_path(project_dir, audio).exists()
+    ]
     existing = len(rows) - len(missing)
     if existing <= 0:
         raise RuntimeError(
@@ -129,12 +136,18 @@ def run_training(
     cmd += ["--model.batch_size", str(resolved_batch_size)]
     cmd += ["--model.learning_rate", str(cfg["training"]["learning_rate"])]
 
-    selected_ckpt = base_ckpt or (discover_warmstart() if cfg["project_defaults"].get("use_warmstart_if_found") else None)
+    selected_ckpt = base_ckpt or (
+        discover_warmstart()
+        if cfg["project_defaults"].get("use_warmstart_if_found")
+        else None
+    )
     if selected_ckpt:
         cmd += ["--model.vocoder_warmstart_ckpt", selected_ckpt]
 
     command_path = runs_dir / "run_command.txt"
-    command_path.write_text(" ".join(shlex.quote(part) for part in cmd), encoding="utf-8")
+    command_path.write_text(
+        " ".join(shlex.quote(part) for part in cmd), encoding="utf-8"
+    )
 
     LOGGER.info("Launching training: %s", " ".join(cmd))
     subprocess.run(cmd, check=True, cwd=Path.cwd(), env=os.environ.copy())

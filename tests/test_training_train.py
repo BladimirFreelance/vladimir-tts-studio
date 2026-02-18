@@ -35,11 +35,16 @@ def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
             },
         },
     )
-    monkeypatch.setattr("training.train.read_manifest", lambda _manifest: [("recordings/wav_22050/001.wav", "text")])
+    monkeypatch.setattr(
+        "training.train.read_manifest",
+        lambda _manifest: [("recordings/wav_22050/001.wav", "text")],
+    )
     monkeypatch.setattr("training.train.write_json", lambda *args, **kwargs: None)
 
 
-def test_run_training_uses_current_interpreter_by_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_run_training_uses_current_interpreter_by_default(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
 
@@ -49,15 +54,25 @@ def test_run_training_uses_current_interpreter_by_default(monkeypatch: pytest.Mo
         captured["cmd"] = cmd
 
     monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
-    monkeypatch.setattr("training.train.importlib.util.find_spec", lambda name: object() if name == "piper.train.vits" else None)
+    monkeypatch.setattr(
+        "training.train.importlib.util.find_spec",
+        lambda name: object() if name == "piper.train.vits" else None,
+    )
     monkeypatch.setattr("training.train.subprocess.run", fake_run)
 
     run_training(project_dir, epochs=1)
 
-    assert captured["cmd"][:4] == [__import__("sys").executable, "-m", "piper.train", "fit"]
+    assert captured["cmd"][:4] == [
+        __import__("sys").executable,
+        "-m",
+        "piper.train",
+        "fit",
+    ]
 
 
-def test_run_training_respects_custom_train_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_run_training_respects_custom_train_command(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
 
@@ -74,14 +89,22 @@ def test_run_training_respects_custom_train_command(monkeypatch: pytest.MonkeyPa
     assert captured["cmd"][:4] == ["python", "-m", "my.custom.train", "fit"]
 
 
-def test_run_training_uses_vocoder_warmstart_ckpt_and_not_resume(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_run_training_uses_vocoder_warmstart_ckpt_and_not_resume(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
 
     captured: dict[str, list[str]] = {}
 
-    monkeypatch.setattr("training.train.resolve_train_base_command", lambda: ["python", "-m", "piper.train"])
-    monkeypatch.setattr("training.train.subprocess.run", lambda cmd, **_kwargs: captured.setdefault("cmd", cmd))
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "piper.train"],
+    )
+    monkeypatch.setattr(
+        "training.train.subprocess.run",
+        lambda cmd, **_kwargs: captured.setdefault("cmd", cmd),
+    )
 
     run_training(project_dir, epochs=1, base_ckpt="/tmp/base.ckpt")
 
@@ -90,14 +113,22 @@ def test_run_training_uses_vocoder_warmstart_ckpt_and_not_resume(monkeypatch: py
     assert "--ckpt_path" not in captured["cmd"]
 
 
-def test_run_training_allows_batch_size_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_run_training_allows_batch_size_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
 
     captured: dict[str, list[str]] = {}
 
-    monkeypatch.setattr("training.train.resolve_train_base_command", lambda: ["python", "-m", "piper.train"])
-    monkeypatch.setattr("training.train.subprocess.run", lambda cmd, **_kwargs: captured.setdefault("cmd", cmd))
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "piper.train"],
+    )
+    monkeypatch.setattr(
+        "training.train.subprocess.run",
+        lambda cmd, **_kwargs: captured.setdefault("cmd", cmd),
+    )
 
     run_training(project_dir, epochs=1, batch_size=8)
 
@@ -105,11 +136,16 @@ def test_run_training_allows_batch_size_override(monkeypatch: pytest.MonkeyPatch
     assert captured["cmd"][index + 1] == "8"
 
 
-def test_run_training_error_includes_real_project_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_run_training_error_includes_real_project_name(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
 
-    monkeypatch.setattr("training.train.read_manifest", lambda _manifest: [("recordings/wav_22050/missing.wav", "text")])
+    monkeypatch.setattr(
+        "training.train.read_manifest",
+        lambda _manifest: [("recordings/wav_22050/missing.wav", "text")],
+    )
 
     with pytest.raises(RuntimeError, match=project_dir.name) as exc_info:
         run_training(project_dir, epochs=1)
@@ -117,7 +153,9 @@ def test_run_training_error_includes_real_project_name(monkeypatch: pytest.Monke
     assert "<name>" not in str(exc_info.value)
 
 
-def test_detect_supported_gpu_or_raise_reports_unsupported_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_supported_gpu_or_raise_reports_unsupported_gpu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(
             is_available=lambda: True,
@@ -126,7 +164,11 @@ def test_detect_supported_gpu_or_raise_reports_unsupported_gpu(monkeypatch: pyte
             get_device_capability=lambda _idx: (5, 0),
             synchronize=lambda _idx: None,
         ),
-        zeros=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("CUDA error: no kernel image is available for execution on the device")),
+        zeros=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            RuntimeError(
+                "CUDA error: no kernel image is available for execution on the device"
+            )
+        ),
         version=types.SimpleNamespace(cuda="12.1"),
     )
     monkeypatch.setattr(train_module, "torch", fake_torch)

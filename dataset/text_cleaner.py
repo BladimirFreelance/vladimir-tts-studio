@@ -11,7 +11,9 @@ ABBREVIATIONS = {
 }
 
 
-def normalize_text(raw: str, replacements: dict[str, str], expand_abbreviations: bool = True) -> str:
+def normalize_text(
+    raw: str, replacements: dict[str, str], expand_abbreviations: bool = True
+) -> str:
     text = raw.replace("\ufeff", "")
     for old, new in replacements.items():
         text = text.replace(old, new)
@@ -29,7 +31,7 @@ def remove_garbage_lines(lines: Iterable[str], min_chars: int = 6) -> list[str]:
         cleaned = line.strip()
         if len(cleaned) < min_chars:
             continue
-        if cleaned.count("\uFFFD"):
+        if cleaned.count("\ufffd"):
             continue
         output.append(cleaned)
     return output
