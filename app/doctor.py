@@ -39,7 +39,18 @@ def check_imports() -> list[str]:
 
 def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int]:
     manifest = project_dir / "metadata" / "train.csv"
-    rows = read_manifest(manifest)
+    try:
+        rows = read_manifest(manifest)
+    except FileNotFoundError:
+        project_hint = ""
+        if "<" in project_dir.name or ">" in project_dir.name:
+            project_hint = " Use a real project name instead of the '<name>' placeholder."
+        LOGGER.error("Manifest not found: %s.%s", manifest, project_hint)
+        LOGGER.info("Run 'prepare' first to generate metadata/train.csv for this project.")
+        return {"rows": 0, "ok": 0, "missing": 0, "fixed": 0}
+    except ValueError as exc:
+        LOGGER.error("Invalid manifest format in %s: %s", manifest, exc)
+        return {"rows": 0, "ok": 0, "missing": 0, "fixed": 0}
     ok = 0
     missing = 0
     fixed = 0
