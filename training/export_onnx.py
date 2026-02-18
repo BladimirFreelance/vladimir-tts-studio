@@ -22,7 +22,15 @@ def export_onnx(project: str, project_dir: Path, ckpt: Path | None = None) -> tu
     out_dir.mkdir(parents=True, exist_ok=True)
     onnx_path = out_dir / f"ru_RU-{project}-medium.onnx"
 
-    cmd = [sys.executable, "-m", "piper.export_onnx", "--checkpoint", str(chosen), "--output", str(onnx_path)]
+    cmd = [
+        sys.executable,
+        "-m",
+        "training.piper_export_onnx_compat",
+        "--checkpoint",
+        str(chosen),
+        "--output",
+        str(onnx_path),
+    ]
     subprocess.run(cmd, check=True)
 
     json_path = onnx_path.with_suffix(".onnx.json")
