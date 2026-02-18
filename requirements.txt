@@ -1,7 +1,15 @@
+# Core backend/web GUI
 fastapi>=0.112.0
 uvicorn>=0.30.0
-pyyaml>=6.0.1
-python-dotenv>=1.0.1
-numpy>=1.26.0
-scipy>=1.11.0
 python-multipart>=0.0.9
+
+# Piper runtime + training
+piper-tts
+piper-train
+
+# ML backend (install only one platform-appropriate build)
+torch
+
+# Audio/phoneme tooling
+ffmpeg-python
+espeak-ng
