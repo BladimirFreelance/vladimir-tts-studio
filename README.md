@@ -96,6 +96,7 @@ python -m app.main record --project ddn_vladimir --port 8765
 Проверяет:
 
 - `import piper.espeakbridge`
+- доступность модулей обучения (`piper.train.vits` или `piper_train`)
 - наличие `espeak-ng`
 - доступность `torch`/CUDA
 - каждую строку manifest
@@ -133,6 +134,19 @@ python scripts/06_doctor.py --project <project> --auto-fix
 ### `missing wav`
 
 Строки есть, но нет файлов в `recordings/wav_22050`. Перезапишите пропущенные строки в web-студии.
+
+### `ModuleNotFoundError: No module named 'piper.train.vits'`
+
+Установлен только runtime `piper-tts` без training-модулей. Варианты:
+
+```bash
+# 1) указать явную команду обучения
+set PIPER_TRAIN_CMD=python -m piper_train
+
+# 2) или установить сборку Piper с train-модулями
+```
+
+После этого снова запустите обучение из студии.
 
 ### Невнятный/"бормочущий" голос
 
