@@ -29,3 +29,13 @@ def read_manifest(manifest_path: Path) -> list[tuple[str, str]]:
                 raise ValueError("Manifest must not contain CSV header")
             rows.append((audio.strip(), text.strip()))
     return rows
+
+
+def resolve_audio_path(project_dir: Path, audio_rel: str) -> Path:
+    raw_path = project_dir / audio_rel
+    if raw_path.exists():
+        return raw_path
+    if Path(audio_rel).suffix:
+        return raw_path
+    wav_path = raw_path.with_suffix(".wav")
+    return wav_path if wav_path.exists() else raw_path

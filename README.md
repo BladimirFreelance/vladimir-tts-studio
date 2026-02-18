@@ -88,7 +88,7 @@ python -m app.main record --project ddn_vladimir --port 8765
 
 - Manifest: `data/projects/<project>/metadata/train.csv`
 - Разделитель строго `|` (`audio|text`), UTF-8, **без заголовка**
-- `audio` путь относительный к корню проекта (`recordings/wav_22050/<id>.wav`)
+- `audio` путь относительный к корню проекта без расширения (`recordings/wav_22050/<id>`)
 
 ## Doctor checks
 
@@ -107,7 +107,7 @@ python -m app.main record --project ddn_vladimir --port 8765
 - формат WAV (22050/mono/int16)
 - длительность (1–12 сек)
 
-При `--auto-fix` выполняет конвертацию WAV через `ffmpeg`, а если его нет — Python fallback.
+`prepare` и `doctor --auto-fix` приводят найденные записи к формату 22050 Hz / mono / int16 (через `ffmpeg`, а если его нет — Python fallback).
 
 ## Piper/espeakbridge
 
