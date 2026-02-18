@@ -45,6 +45,13 @@ def _resample_existing_audio(
 
 
 def prepare_dataset(text_file: Path, project: str) -> None:
+    text_file = text_file.expanduser()
+    if not text_file.exists() or not text_file.is_file():
+        raise FileNotFoundError(
+            f"Текстовый файл не найден: {text_file}. "
+            "Укажите существующий путь через --text."
+        )
+
     cfg = load_yaml(Path("configs/train_default.yaml"))
     project_dir = Path("data/projects") / project
     (project_dir / "prompts").mkdir(parents=True, exist_ok=True)
