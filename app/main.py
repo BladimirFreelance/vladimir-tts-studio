@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_train.add_argument("--project", required=True)
     s_train.add_argument("--base_ckpt")
     s_train.add_argument("--epochs", type=int, default=50)
+    s_train.add_argument("--batch-size", type=int, dest="batch_size")
 
     s_export = sub.add_parser("export")
     s_export.add_argument("--project", required=True)
@@ -64,7 +65,12 @@ def main() -> None:
     elif args.cmd == "record":
         run_server(Path("data/projects") / args.project, port=args.port)
     elif args.cmd == "train":
-        run_training(Path("data/projects") / args.project, epochs=args.epochs, base_ckpt=args.base_ckpt)
+        run_training(
+            Path("data/projects") / args.project,
+            epochs=args.epochs,
+            base_ckpt=args.base_ckpt,
+            batch_size=args.batch_size,
+        )
     elif args.cmd == "export":
         onnx, cfg = export_onnx(args.project, Path("data/projects") / args.project, Path(args.ckpt) if args.ckpt else None)
         logging.info("Exported %s and %s", onnx, cfg)

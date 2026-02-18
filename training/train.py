@@ -8,6 +8,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    import torch
+except ImportError:  # pragma: no cover - optional dependency for pre-flight diagnostics
+    torch = None
+
 from dataset.manifest import read_manifest, resolve_audio_path
 from training.utils import ensure_espeakbridge_import
 from utils import load_yaml, write_json
@@ -47,7 +52,37 @@ def resolve_train_base_command() -> list[str]:
     )
 
 
-def run_training(project_dir: Path, epochs: int, base_ckpt: str | None = None, config_path: Path | None = None) -> None:
+def detect_supported_gpu_or_raise() -> None:
+    if torch is None or not torch.cuda.is_available():
+        return
+
+    device_index = torch.cuda.current_device()
+    device_name = torch.cuda.get_device_name(device_index)
+
+    try:
+        torch.zeros(1, device=f"cuda:{device_index}")
+        torch.cuda.synchronize(device_index)
+    except RuntimeError as exc:
+        message = str(exc).lower()
+        if "no kernel image is available" in message or "not compatible with the current pytorch installation" in message:
+            capability = torch.cuda.get_device_capability(device_index)
+            cuda_version = getattr(torch.version, "cuda", "unknown")
+            raise RuntimeError(
+                "Обнаружен GPU '%s' (compute capability %s.%s), но текущая сборка PyTorch/CUDA его не поддерживает. "
+                "Установите совместимую версию PyTorch или используйте другой GPU. (torch CUDA=%s)"
+                % (device_name, capability[0], capability[1], cuda_version)
+            ) from exc
+        raise
+
+
+def run_training(
+    project_dir: Path,
+    epochs: int,
+    base_ckpt: str | None = None,
+    config_path: Path | None = None,
+    batch_size: int | None = None,
+) -> None:
+    detect_supported_gpu_or_raise()
     ensure_espeakbridge_import()
     cfg = load_yaml(config_path or Path("configs/train_default.yaml"))
     manifest = project_dir / "metadata" / "train.csv"
@@ -82,12 +117,13 @@ def run_training(project_dir: Path, epochs: int, base_ckpt: str | None = None, c
     cmd += ["--trainer.default_root_dir", str(runs_dir)]
     cmd += ["--data.phoneme_type", cfg["training"]["phoneme_type"]]
     cmd += ["--data.espeak_voice", cfg["training"]["espeak_voice"]]
-    cmd += ["--model.batch_size", str(cfg["training"]["batch_size"])]
+    resolved_batch_size = batch_size or int(cfg["training"]["batch_size"])
+    cmd += ["--model.batch_size", str(resolved_batch_size)]
     cmd += ["--model.learning_rate", str(cfg["training"]["learning_rate"])]
 
     selected_ckpt = base_ckpt or (discover_warmstart() if cfg["project_defaults"].get("use_warmstart_if_found") else None)
     if selected_ckpt:
-        cmd += ["--ckpt_path", selected_ckpt]
+        cmd += ["--model.vocoder_warmstart_ckpt", selected_ckpt]
 
     command_path = runs_dir / "run_command.txt"
     command_path.write_text(" ".join(shlex.quote(part) for part in cmd), encoding="utf-8")
