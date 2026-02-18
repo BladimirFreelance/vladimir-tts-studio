@@ -105,6 +105,18 @@ def test_run_training_allows_batch_size_override(monkeypatch: pytest.MonkeyPatch
     assert captured["cmd"][index + 1] == "8"
 
 
+def test_run_training_error_includes_real_project_name(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    monkeypatch.setattr("training.train.read_manifest", lambda _manifest: [("recordings/wav_22050/missing.wav", "text")])
+
+    with pytest.raises(RuntimeError, match=project_dir.name) as exc_info:
+        run_training(project_dir, epochs=1)
+
+    assert "<name>" not in str(exc_info.value)
+
+
 def test_detect_supported_gpu_or_raise_reports_unsupported_gpu(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(

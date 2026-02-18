@@ -100,7 +100,7 @@ def run_training(
     if existing <= 0:
         raise RuntimeError(
             "Обнаружено 0 utterances. Проверьте запись в студии и что WAV-файлы существуют в recordings/wav_22050. "
-            "Запустите scripts/06_doctor.py --project <name> для диагностики."
+            f"Запустите scripts/06_doctor.py --project {project_dir.name} --auto-fix для диагностики."
         )
 
     data_config = project_dir / "metadata" / "data_config.json"
