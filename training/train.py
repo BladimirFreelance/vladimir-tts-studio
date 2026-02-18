@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
 import shlex
@@ -23,6 +24,27 @@ def discover_warmstart() -> str | None:
         if item.exists():
             return str(item)
     return None
+
+
+def resolve_train_base_command() -> list[str]:
+    """Resolve Piper training entrypoint for the current environment."""
+    train_cmd = os.getenv("PIPER_TRAIN_CMD")
+    if train_cmd:
+        return shlex.split(train_cmd)
+
+    module_candidates = [
+        ("piper.train.vits", "piper.train"),
+        ("piper_train", "piper_train"),
+    ]
+    for probe_module, cli_module in module_candidates:
+        if importlib.util.find_spec(probe_module) is not None:
+            return [sys.executable, "-m", cli_module]
+
+    raise RuntimeError(
+        "Не найден модуль обучения Piper. Текущее окружение содержит runtime piper-tts, "
+        "но не training-компоненты. Установите training-сборку Piper или укажите команду "
+        "через PIPER_TRAIN_CMD (пример: python -m piper_train)."
+    )
 
 
 def run_training(project_dir: Path, epochs: int, base_ckpt: str | None = None, config_path: Path | None = None) -> None:
@@ -53,11 +75,7 @@ def run_training(project_dir: Path, epochs: int, base_ckpt: str | None = None, c
     runs_dir = project_dir / "runs"
     runs_dir.mkdir(parents=True, exist_ok=True)
 
-    train_cmd = os.getenv("PIPER_TRAIN_CMD")
-    if train_cmd:
-        cmd = [*shlex.split(train_cmd), "fit"]
-    else:
-        cmd = [sys.executable, "-m", "piper.train", "fit"]
+main
     cmd += ["--data.config_path", str(data_config)]
     cmd += ["--data.dataset", "jsonl"]
     cmd += ["--max_epochs", str(epochs)]

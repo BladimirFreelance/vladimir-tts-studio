@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import logging
 import shutil
 from pathlib import Path
@@ -17,6 +18,11 @@ def check_imports() -> list[str]:
         importlib.import_module("piper.espeakbridge")
     except Exception:
         issues.append("ImportError: piper.espeakbridge (fix: pip install piper-tts)")
+
+    if importlib.util.find_spec("piper.train.vits") is None and importlib.util.find_spec("piper_train") is None:
+        issues.append(
+            "Piper training modules not found (fix: install Piper training build or set PIPER_TRAIN_CMD, e.g. python -m piper_train)"
+        )
 
     try:
         import torch
