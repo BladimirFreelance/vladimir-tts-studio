@@ -55,7 +55,7 @@ python scripts/01_prepare_dataset.py --text data/input_texts/news.txt --project 
 python scripts/02_run_studio.py --project ddn_vladimir --port 8765
 python scripts/03_train.py --project ddn_vladimir --epochs 50
 python scripts/04_export_onnx.py --project ddn_vladimir
-python scripts/05_test_voice.py --model voices_out/ru_RU-ddn_vladimir-medium.onnx --text "Привет!" --out test.wav
+python scripts/05_test_voice.py --model voices_out/ru_RU-ddn_vladimir-medium.onnx --config voices_out/ru_RU-ddn_vladimir-medium.onnx.json --text "Привет!"
 python scripts/06_doctor.py --project ddn_vladimir --auto-fix
 ```
 
