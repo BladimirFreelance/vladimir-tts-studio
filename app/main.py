@@ -27,7 +27,13 @@ def build_parser() -> argparse.ArgumentParser:
     s_prepare.add_argument("--text", required=True)
     s_prepare.add_argument("--project", required=True)
 
-    s_record = sub.add_parser("record")
+    s_record = sub.add_parser(
+        "record",
+        help=(
+            "Запустить локальный FastAPI-сервер со студией записи "
+            "(сохранение WAV в recordings/wav_22050/)"
+        ),
+    )
     s_record.add_argument("--project", required=True)
     s_record.add_argument("--port", type=int, default=8765)
 
@@ -69,6 +75,13 @@ def main() -> None:
                 "Prepare finished with doctor warnings. Continue to recording step."
             )
     elif args.cmd == "record":
+        logging.info(
+            "Starting studio UI for project '%s' on port %s "
+            "(recordings -> data/projects/%s/recordings/wav_22050/)",
+            args.project,
+            args.port,
+            args.project,
+        )
         run_server(Path("data/projects") / args.project, port=args.port)
     elif args.cmd == "train":
         run_training(
