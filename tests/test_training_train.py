@@ -56,7 +56,9 @@ def test_resolve_train_base_command_uses_piper_train_module(monkeypatch: pytest.
     assert resolve_train_base_command() == [__import__("sys").executable, "-m", "piper.train"]
 
 
-def test_resolve_train_base_command_prefers_piper_train_when_both_layouts_present(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolve_train_base_command_prefers_piper_train_module_when_both_layouts_present(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
 
     calls: list[str] = []
@@ -96,7 +98,24 @@ def test_resolve_train_base_command_raises_clear_error_when_training_module_miss
         resolve_train_base_command()
 
 
-def test_run_training_builds_command_with_fit(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_run_training_uses_current_interpreter_by_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(cmd: list[str], **_kwargs):
+        captured["cmd"] = cmd
+
+    monkeypatch.setattr("training.train.resolve_train_base_command", lambda: [__import__("sys").executable, "-m", "piper.train"])
+    monkeypatch.setattr("training.train.subprocess.run", fake_run)
+
+    run_training(project_dir, epochs=1)
+
+    assert captured["cmd"][:4] == [__import__("sys").executable, "-m", "piper.train", "fit"]
+
+
+def test_run_training_respects_custom_train_command(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
 
