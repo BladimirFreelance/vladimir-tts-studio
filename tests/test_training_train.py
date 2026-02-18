@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-main
+from training.train import run_training
 
 
 def _prepare_project(tmp_path: Path) -> Path:
@@ -36,7 +36,6 @@ def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("training.train.write_json", lambda *args, **kwargs: None)
 
 
-main
 def test_run_training_uses_current_interpreter_by_default(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
@@ -46,7 +45,8 @@ def test_run_training_uses_current_interpreter_by_default(monkeypatch: pytest.Mo
     def fake_run(cmd: list[str], **_kwargs):
         captured["cmd"] = cmd
 
-main
+    monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
+    monkeypatch.setattr("training.train.importlib.util.find_spec", lambda name: object() if name == "piper.train.vits" else None)
     monkeypatch.setattr("training.train.subprocess.run", fake_run)
 
     run_training(project_dir, epochs=1)
@@ -63,7 +63,7 @@ def test_run_training_respects_custom_train_command(monkeypatch: pytest.MonkeyPa
     def fake_run(cmd: list[str], **_kwargs):
         captured["cmd"] = cmd
 
-main
+    monkeypatch.setenv("PIPER_TRAIN_CMD", "python -m my.custom.train")
     monkeypatch.setattr("training.train.subprocess.run", fake_run)
 
     run_training(project_dir, epochs=1)
