@@ -145,6 +145,11 @@ def auto_detect_torch_mode() -> str:
     return "cpu"
 
 
+
+def install_piper_training(pip_cmd: list[str], source: str) -> None:
+    print("[i] Устанавливаю Piper training-модули...")
+    run(pip_cmd + ["install", source])
+
 def print_system_hints() -> None:
     if shutil.which("ffmpeg") is None:
         print("\n[!] ffmpeg не найден в PATH. Для авто-исправления аудио doctor-ом установите ffmpeg.")
@@ -177,6 +182,16 @@ def parse_args() -> argparse.Namespace:
         default=["piper-tts"],
         help="Дополнительные pip-пакеты для установки (по умолчанию: piper-tts)",
     )
+    parser.add_argument(
+        "--with-piper-training",
+        action="store_true",
+        help="Установить training-модули Piper (если планируется локальное обучение)",
+    )
+    parser.add_argument(
+        "--piper-training-source",
+        default="git+https://github.com/rhasspy/piper.git#subdirectory=src/python",
+        help="Источник для установки training-модулей Piper",
+    )
     return parser.parse_args()
 
 
@@ -206,10 +221,15 @@ def main() -> int:
     if args.extras:
         run(pip_cmd + ["install", *args.extras])
 
+    if args.with_piper_training:
+        install_piper_training(pip_cmd, args.piper_training_source)
+
     print_system_hints()
 
     print("\nГотово. Рекомендуется проверить окружение:")
     print("python scripts/06_doctor.py --project <project_name> --auto-fix")
+    if not args.with_piper_training:
+        print("[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py --with-piper-training")
     return 0
 
 
