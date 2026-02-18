@@ -39,7 +39,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_train = sub.add_parser("train")
     s_train.add_argument("--project", required=True)
-    s_train.add_argument("--base_ckpt")
+    s_train.add_argument(
+        "--model.vocoder_warmstart_ckpt",
+        dest="vocoder_warmstart_ckpt",
+        help=(
+            "Путь к базовому Piper checkpoint для warmstart без восстановления "
+            "состояния тренера/эпох"
+        ),
+    )
     s_train.add_argument("--epochs", type=int, default=50)
     s_train.add_argument("--batch-size", type=int, dest="batch_size")
 
@@ -87,7 +94,7 @@ def main() -> None:
         run_training(
             Path("data/projects") / args.project,
             epochs=args.epochs,
-            base_ckpt=args.base_ckpt,
+            vocoder_warmstart_ckpt=args.vocoder_warmstart_ckpt,
             batch_size=args.batch_size,
         )
     elif args.cmd == "export":
