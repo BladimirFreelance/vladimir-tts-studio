@@ -74,6 +74,23 @@ python -m app.main record --project ddn_vladimir --port 8765
 - тест синтеза в WAV;
 - doctor-проверка с `auto-fix`.
 
+
+## Авто-разрешение конфликтов перед PR
+
+Если GitHub пишет `This branch has conflicts that must be resolved`, запустите:
+
+```bash
+python scripts/07_resolve_pr_conflicts.py
+```
+
+Скрипт:
+- подтягивает `origin/main`;
+- делает merge в текущую feature-ветку;
+- автоматически решает типовые конфликты в `training/train.py` и `tests/test_training_train.py` через стратегию `--ours`;
+- запускает проверки конфликт-маркеров и целевые тесты.
+
+После успешного выполнения останется только `git push` вашей feature-ветки.
+
 ## Структура проекта
 
 - `app/main.py` — единый CLI (`prepare / record / train / export / test / doctor`)
