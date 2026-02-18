@@ -41,22 +41,20 @@ def discover_warmstart() -> str | None:
 
 def resolve_train_base_command() -> list[str]:
     """Resolve Piper training entrypoint for the current environment."""
+    try:
+        if importlib.util.find_spec("piper.train") is not None:
+            return [sys.executable, "-m", "piper.train"]
+    except ModuleNotFoundError:
+        pass
+
     train_cmd = os.getenv("PIPER_TRAIN_CMD")
     if train_cmd:
         return shlex.split(train_cmd)
 
-    module_candidates = [
-        ("piper.train.vits", "piper.train"),
-        ("piper_train", "piper_train"),
-    ]
-    for probe_module, cli_module in module_candidates:
-        if importlib.util.find_spec(probe_module) is not None:
-            return [sys.executable, "-m", cli_module]
-
     raise RuntimeError(
-        "Не найден модуль обучения Piper (piper.train.vits или piper_train). "
-        "Запустите scripts/00_setup_env.py --with-piper-training, "
-        "либо укажите команду через PIPER_TRAIN_CMD (пример: python -m piper_train)."
+        "Не найден модуль обучения Piper (piper.train). "
+        "Запустите scripts/00_setup_env.py --require-piper-training, "
+        "или задайте PowerShell-переменную: $env:PIPER_TRAIN_CMD=\"python -m piper.train\"."
     )
 
 
@@ -81,7 +79,7 @@ def detect_supported_gpu_or_raise() -> None:
             raise RuntimeError(
                 "Обнаружен GPU '%s' (compute capability %s.%s), но текущая сборка PyTorch/CUDA его не поддерживает. "
                 "Установите совместимую версию PyTorch или запустите обучение на CPU. "
-                "Пример: CUDA_VISIBLE_DEVICES='' python scripts/03_train.py --project <name>. "
+                "Пример: set CUDA_VISIBLE_DEVICES= && python scripts/03_train.py --project PROJECT_NAME. "
                 "(torch CUDA=%s)"
                 % (device_name, capability[0], capability[1], cuda_version)
             ) from exc

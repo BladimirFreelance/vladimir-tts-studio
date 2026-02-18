@@ -5,10 +5,6 @@ python-multipart>=0.0.9
 
 # Piper runtime + training
 piper-tts
-piper-train
-
-# ML backend (install only one platform-appropriate build)
-torch
 
 # Audio/phoneme tooling
 ffmpeg-python

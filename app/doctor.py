@@ -4,6 +4,8 @@ import importlib
 import importlib.util
 import logging
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
 from dataset.audio_tools import convert_wav, inspect_wav
@@ -19,12 +21,9 @@ def check_imports() -> list[str]:
     except Exception:
         issues.append("ImportError: piper.espeakbridge (fix: pip install piper-tts)")
 
-    if (
-        importlib.util.find_spec("piper.train.vits") is None
-        and importlib.util.find_spec("piper_train") is None
-    ):
+    if importlib.util.find_spec("piper.train") is None:
         issues.append(
-            "Piper training modules not found (fix: install Piper training build or set PIPER_TRAIN_CMD, e.g. python -m piper_train)"
+            "Piper training module not found (fix: python scripts/00_setup_env.py --require-piper-training or set $env:PIPER_TRAIN_CMD=\"python -m piper.train\")"
         )
 
     try:
@@ -83,7 +82,7 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
     except FileNotFoundError:
         if "<" in project_dir.name or ">" in project_dir.name:
             LOGGER.error(
-                "Project name looks like a placeholder: %s. Use a real project name instead of <name>.",
+                "Project name looks like a placeholder: %s. Use a real project name instead of PROJECT_NAME.",
                 project_dir.name,
             )
         LOGGER.error("Manifest not found: %s", manifest)
@@ -206,6 +205,26 @@ def run_doctor(
     project_dir: Path, auto_fix: bool = False, require_audio: bool = True
 ) -> int:
     issues = check_imports()
+    if auto_fix and any("Piper training module not found" in issue for issue in issues):
+        LOGGER.info("Trying to auto-fix Piper training installation...")
+        cmd = [
+            sys.executable,
+            "scripts/00_setup_env.py",
+            "--no-venv",
+            "--require-piper-training",
+        ]
+        completed = subprocess.run(cmd, check=False)
+        if completed.returncode == 0:
+            issues = [
+                issue
+                for issue in check_imports()
+                if "Piper training module not found" not in issue
+            ]
+        else:
+            LOGGER.warning(
+                "Auto-fix failed. Run manually: python scripts/00_setup_env.py --require-piper-training"
+            )
+
     for issue in issues:
         LOGGER.warning(issue)
 
@@ -225,7 +244,7 @@ def run_doctor(
     if require_audio and stats["ok"] == 0:
         if stats.get("error") == "manifest_missing":
             LOGGER.error(
-                "No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --text <path_to_txt> --project <project_name>"
+                "No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --text PATH_TO_TXT --project PROJECT_NAME"
             )
         elif stats.get("error") == "manifest_invalid":
             LOGGER.error(

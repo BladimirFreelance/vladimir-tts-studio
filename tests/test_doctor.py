@@ -41,7 +41,7 @@ def test_check_imports_reports_missing_training_modules(monkeypatch):
 
     issues = check_imports()
 
-    assert any("Piper training modules not found" in issue for issue in issues)
+    assert any("Piper training module not found" in issue for issue in issues)
 
 
 def test_check_manifest_handles_missing_manifest(
@@ -112,3 +112,39 @@ def test_run_doctor_logs_prepare_hint_when_manifest_missing(
 
     assert "No manifest found. Run prepare first" in caplog.text
     assert "0 utterances ready for training" not in caplog.text
+
+
+def test_run_doctor_auto_fix_training_invokes_setup(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "app.doctor.check_imports",
+        lambda: ["Piper training module not found"]
+    )
+    captured: dict[str, list[str]] = {}
+
+    def fake_run(cmd: list[str], check: bool = False):
+        captured["cmd"] = cmd
+        return types.SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr("app.doctor.subprocess.run", fake_run)
+    monkeypatch.setattr(
+        "app.doctor.check_manifest",
+        lambda _project_dir, auto_fix=False: {
+            "rows": 0,
+            "ok": 1,
+            "missing": 0,
+            "fixed": 0,
+            "path_fixed": 0,
+            "invalid_paths": 0,
+            "sample_rate_mismatch": 0,
+            "duration_min": 0.0,
+            "error": "",
+        },
+    )
+
+    run_doctor(tmp_path / "demo", auto_fix=True, require_audio=False)
+
+    assert captured["cmd"][1:] == [
+        "scripts/00_setup_env.py",
+        "--no-venv",
+        "--require-piper-training",
+    ]

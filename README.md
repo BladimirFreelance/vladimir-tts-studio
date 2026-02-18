@@ -27,16 +27,17 @@ python scripts/00_setup_env.py --torch directml  # AMD/Intel GPU на Windows (�
 python scripts/00_setup_env.py --torch skip      # пропустить torch
 python scripts/00_setup_env.py --no-venv         # ставить в текущее окружение
 python scripts/00_setup_env.py --without-piper-training  # пропустить установку Piper training-модулей
+python scripts/00_setup_env.py --with-piper-training     # явное включение установки training (алиас)
 python scripts/00_setup_env.py --require-piper-training   # упасть с ошибкой, если training-модули не установились
 ```
 
-> По умолчанию setup не прерывается, если `piper_train`/`piper.train.vits` не удалось установить (часто из-за отсутствия wheel `piper-phonemize` для вашей платформы/Python). Runtime-синтез через `piper-tts` при этом остается рабочим.
+> При `--require-piper-training` setup автоматически ставит training-ветку из `OHF-Voice/piper1-gpl`, затем проверяет `piper.train.vits` и `python -m piper.train --help`.
 
 ## Обучение на GPU в Windows (без WSL)
 
 Скрипт `scripts/00_setup_env.py` теперь автоматически определяет конфигурацию ПК и ставит максимально совместимый стек:
 
-- **NVIDIA GPU**: читает `nvidia-smi`, для RTX 3060 приоритезирует `cu121`, для более новых CUDA выбирает `cu124`.
+- **NVIDIA GPU**: читает `nvidia-smi` и по умолчанию ставит CUDA-сборку (`cu124`/`cu121`, в зависимости от версии CUDA).
 - **AMD/Intel GPU (Windows)**: ставит CPU-колёса PyTorch + `torch-directml` для запуска обучения через DirectML.
 - **Fallback**: если CUDA-колёса не ставятся, на Windows пробует DirectML и затем CPU, на других ОС — CPU.
 
@@ -89,20 +90,18 @@ python -m app.main record --project ddn_vladimir --port 8765
 
 ## Формат датасета
 
-- Manifest: `data/projects/<project>/metadata/train.csv`
+- Manifest: `data/projects/PROJECT_NAME/metadata/train.csv`
 - Разделитель строго `|` (`audio|text`), UTF-8, **без заголовка**
-- `audio` путь относительный к корню проекта без расширения (`recordings/wav_22050/<id>`)
+- `audio` путь относительный к корню проекта без расширения (`recordings/wav_22050/ID`)
 
 ## Doctor checks
 
-`python scripts/06_doctor.py --project <name> --auto-fix`
-
-> Важно: используйте реальное имя проекта вместо `<name>`, например `--project ddn_vladimir`.
+`python scripts/06_doctor.py --project PROJECT_NAME --auto-fix`
 
 Проверяет:
 
 - `import piper.espeakbridge`
-- доступность модулей обучения (`piper.train.vits` или `piper_train`)
+- доступность модуля обучения (`piper.train`)
 - наличие `espeak-ng`
 - доступность `torch`/CUDA
 - каждую строку manifest
@@ -134,26 +133,34 @@ pip install piper-tts
 Вы записали 0 файлов или manifest указывает на несуществующие пути. Если вы запустили doctor до `prepare`, сначала создайте проект и manifest.
 
 ```bash
-python scripts/06_doctor.py --project <project> --auto-fix
+python scripts/06_doctor.py --project PROJECT_NAME --auto-fix
 ```
 
 ### `missing wav`
 
 Строки есть, но нет файлов в `recordings/wav_22050`. Перезапишите пропущенные строки в web-студии.
 
-### `ModuleNotFoundError: No module named 'piper.train.vits'`
+### `ModuleNotFoundError: No module named 'piper.train'`
 
 Если окружение создавалось не через `scripts/00_setup_env.py`, training-модули могли не установиться. Варианты:
 
 ```bash
-# 1) указать явную команду обучения
-set PIPER_TRAIN_CMD=python -m piper_train
+# 1) указать явную команду обучения (PowerShell)
+$env:PIPER_TRAIN_CMD="python -m piper.train"
 
 # 2) или переустановить окружение (по умолчанию training ставится автоматически)
 python scripts/00_setup_env.py
 
 # 3) если нужно, чтобы setup обязательно падал при отсутствии training-модулей
 python scripts/00_setup_env.py --require-piper-training
+```
+
+Smoke test после setup:
+
+```bash
+python scripts/00_setup_env.py --require-piper-training
+python -c "import importlib.util as u; print(u.find_spec('piper.train.vits'))"
+python -m piper.train --help
 ```
 
 После этого снова запустите обучение из студии.
