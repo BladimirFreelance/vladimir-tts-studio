@@ -11,7 +11,7 @@
 
 ## Авто-установка зависимостей (рекомендуется для PyCharm Terminal)
 
-Теперь можно запустить один скрипт, который создаст `.venv`, обновит `pip`, установит зависимости проекта, `piper-tts` и PyTorch:
+Теперь можно запустить один скрипт, который создаст `.venv`, обновит `pip`, установит зависимости проекта, PyTorch, `piper-tts` (runtime) и Piper training-модули:
 
 ```bash
 python scripts/00_setup_env.py
@@ -26,16 +26,16 @@ python scripts/00_setup_env.py --torch cu121     # CUDA 12.1 сборка PyTorc
 python scripts/00_setup_env.py --torch directml  # AMD/Intel GPU на Windows (без WSL)
 python scripts/00_setup_env.py --torch skip      # пропустить torch
 python scripts/00_setup_env.py --no-venv         # ставить в текущее окружение
-python scripts/00_setup_env.py --with-piper-training  # дополнительно поставить Piper training-модули
+python scripts/00_setup_env.py --without-piper-training  # пропустить установку Piper training-модулей
 ```
 
 ## Обучение на GPU в Windows (без WSL)
 
 Скрипт `scripts/00_setup_env.py` теперь автоматически определяет конфигурацию ПК и ставит максимально совместимый стек:
 
-- **NVIDIA GPU**: читает `nvidia-smi` и выбирает `cu124`/`cu121` в зависимости от версии CUDA драйвера.
+- **NVIDIA GPU**: читает `nvidia-smi`, для RTX 3060 приоритезирует `cu121`, для более новых CUDA выбирает `cu124`.
 - **AMD/Intel GPU (Windows)**: ставит CPU-колёса PyTorch + `torch-directml` для запуска обучения через DirectML.
-- **Fallback**: если GPU-вариант недоступен, автоматически переключается на CPU-сборку.
+- **Fallback**: если CUDA-колёса не ставятся, на Windows пробует DirectML и затем CPU, на других ОС — CPU.
 
 Для ручного контроля можно явно указать `--torch`.
 
@@ -140,14 +140,14 @@ python scripts/06_doctor.py --project <project> --auto-fix
 
 ### `ModuleNotFoundError: No module named 'piper.train.vits'`
 
-Установлен только runtime `piper-tts` без training-модулей. Варианты:
+Если окружение создавалось не через `scripts/00_setup_env.py`, training-модули могли не установиться. Варианты:
 
 ```bash
 # 1) указать явную команду обучения
 set PIPER_TRAIN_CMD=python -m piper_train
 
-# 2) или установить training-модули автоматически
-python scripts/00_setup_env.py --with-piper-training
+# 2) или переустановить окружение (по умолчанию training ставится автоматически)
+python scripts/00_setup_env.py
 ```
 
 После этого снова запустите обучение из студии.
