@@ -13,9 +13,12 @@ dependencies = [
   "uvicorn>=0.30.0",
   "python-multipart>=0.0.9",
   "piper-tts",
-  "ffmpeg-python",
-  "espeak-ng"
+  "ffmpeg-python"
 ]
 
 [tool.setuptools]
 packages = ["app", "dataset", "studio", "training"]
+
+
+[project.scripts]
+vladimir-voice-lab = "app.main:main"

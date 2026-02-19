@@ -56,9 +56,7 @@ def _coerce_manifest_path(project_dir: Path, audio_rel: str) -> str | None:
     if any(part == ".." for part in normalized.parts):
         return None
 
-    if normalized.suffix.lower() == ".wav":
-        normalized = normalized.with_suffix("")
-    return normalized.as_posix()
+    return Path(normalized.name).as_posix()
 
 
 def _duration_warning(total_sec: float) -> str:

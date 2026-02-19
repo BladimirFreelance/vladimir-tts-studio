@@ -13,7 +13,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency for pre-flight diagnostics
     torch = None
 
-from dataset.manifest import read_manifest, resolve_audio_path
+from dataset.manifest import read_manifest
 from training.utils import ensure_espeakbridge_import
 from utils import load_yaml, write_json
 
@@ -58,32 +58,74 @@ def resolve_train_base_command() -> list[str]:
     )
 
 
-def detect_supported_gpu_or_raise() -> None:
+def detect_supported_gpu_or_raise() -> dict[str, str]:
+    if os.getenv("CUDA_VISIBLE_DEVICES"):
+        LOGGER.info("CUDA_VISIBLE_DEVICES уже задан, использую его без изменений")
+        return {}
+
     if torch is None or not torch.cuda.is_available():
-        return
+        LOGGER.warning("CUDA недоступна, запускаю обучение на CPU")
+        return {}
 
-    device_index = torch.cuda.current_device()
-    device_name = torch.cuda.get_device_name(device_index)
+    for index in range(torch.cuda.device_count()):
+        device_name = torch.cuda.get_device_name(index)
+        capability = torch.cuda.get_device_capability(index)
+        try:
+            torch.zeros(1, device=f"cuda:{index}")
+            torch.cuda.synchronize(index)
+            if index == 0:
+                LOGGER.info(
+                    "Выбран GPU #%s: %s (sm_%s%s)",
+                    index,
+                    device_name,
+                    capability[0],
+                    capability[1],
+                )
+                return {}
 
-    try:
-        torch.zeros(1, device=f"cuda:{device_index}")
-        torch.cuda.synchronize(device_index)
-    except RuntimeError as exc:
-        message = str(exc).lower()
-        if (
-            "no kernel image is available" in message
-            or "not compatible with the current pytorch installation" in message
-        ):
-            capability = torch.cuda.get_device_capability(device_index)
-            cuda_version = getattr(torch.version, "cuda", "unknown")
-            raise RuntimeError(
-                "Обнаружен GPU '%s' (compute capability %s.%s), но текущая сборка PyTorch/CUDA его не поддерживает. "
-                "Установите совместимую версию PyTorch или запустите обучение на CPU. "
-                "Пример: set CUDA_VISIBLE_DEVICES= && python scripts/03_train.py --project PROJECT_NAME. "
-                "(torch CUDA=%s)"
-                % (device_name, capability[0], capability[1], cuda_version)
-            ) from exc
-        raise
+            LOGGER.info(
+                "GPU #0 пропущен, выбран совместимый GPU #%s: %s (sm_%s%s). "
+                "Для процесса обучения установлен CUDA_VISIBLE_DEVICES=%s",
+                index,
+                device_name,
+                capability[0],
+                capability[1],
+                index,
+            )
+            return {"CUDA_VISIBLE_DEVICES": str(index)}
+        except RuntimeError as exc:
+            LOGGER.warning(
+                "Пропускаю GPU #%s (%s, sm_%s%s): %s",
+                index,
+                device_name,
+                capability[0],
+                capability[1],
+                exc,
+            )
+
+    LOGGER.warning("Не найден совместимый CUDA GPU. Продолжаю обучение на CPU")
+    return {"CUDA_VISIBLE_DEVICES": ""}
+
+
+def _assert_manifest_audio(project_dir: Path, rows: list[tuple[str, str]]) -> int:
+    audio_dir = project_dir / "recordings" / "wav_22050"
+    missing: list[str] = []
+    for audio, _text in rows:
+        filename = Path(audio).name
+        if not filename:
+            missing.append(audio)
+            continue
+        if not (audio_dir / filename).exists():
+            missing.append(filename)
+
+    if missing:
+        preview = ", ".join(missing[:3])
+        raise RuntimeError(
+            "Manifest указывает на отсутствующие WAV в recordings/wav_22050. "
+            f"Отсутствует: {len(missing)} (примеры: {preview})."
+        )
+
+    return len(rows)
 
 
 def run_training(
@@ -95,17 +137,12 @@ def run_training(
     *,
     base_ckpt: str | None = None,
 ) -> None:
-    detect_supported_gpu_or_raise()
+    train_env_patch = detect_supported_gpu_or_raise()
     ensure_espeakbridge_import()
     cfg = load_yaml(config_path or Path("configs/train_default.yaml"))
     manifest = project_dir / "metadata" / "train.csv"
     rows = read_manifest(manifest)
-    missing = [
-        audio
-        for audio, _ in rows
-        if not resolve_audio_path(project_dir, audio).exists()
-    ]
-    existing = len(rows) - len(missing)
+    existing = _assert_manifest_audio(project_dir, rows)
     if existing <= 0:
         raise RuntimeError(
             "Обнаружено 0 utterances. Проверьте запись в студии и что WAV-файлы существуют в recordings/wav_22050. "
@@ -129,13 +166,17 @@ def run_training(
 
     cmd = resolve_train_base_command() + ["fit"]
     cmd += ["--data.config_path", str(data_config)]
-    cmd += ["--data.dataset", "jsonl"]
-    cmd += ["--max_epochs", str(epochs)]
+    cmd += ["--data.dataset_type", "text"]
+    cmd += ["--data.voice_name", project_dir.name]
+    cmd += ["--data.csv_path", str(manifest)]
+    cmd += ["--data.audio_dir", str(project_dir / "recordings" / "wav_22050")]
+    cmd += ["--data.cache_dir", str(project_dir / "cache")]
+    cmd += ["--trainer.max_epochs", str(epochs)]
     cmd += ["--trainer.default_root_dir", str(runs_dir)]
     cmd += ["--data.phoneme_type", cfg["training"]["phoneme_type"]]
     cmd += ["--data.espeak_voice", cfg["training"]["espeak_voice"]]
     resolved_batch_size = batch_size or int(cfg["training"]["batch_size"])
-    cmd += ["--model.batch_size", str(resolved_batch_size)]
+    cmd += ["--data.batch_size", str(resolved_batch_size)]
     cmd += ["--model.learning_rate", str(cfg["training"]["learning_rate"])]
 
     selected_ckpt = vocoder_warmstart_ckpt or base_ckpt or (
@@ -152,7 +193,9 @@ def run_training(
     )
 
     LOGGER.info("Launching training: %s", " ".join(cmd))
-    subprocess.run(cmd, check=True, cwd=Path.cwd(), env=os.environ.copy())
+    train_env = os.environ.copy()
+    train_env.update(train_env_patch)
+    subprocess.run(cmd, check=True, cwd=Path.cwd(), env=train_env)
 
 
 if __name__ == "__main__":

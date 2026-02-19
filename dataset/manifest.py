@@ -32,10 +32,15 @@ def read_manifest(manifest_path: Path) -> list[tuple[str, str]]:
 
 
 def resolve_audio_path(project_dir: Path, audio_rel: str) -> Path:
-    raw_path = project_dir / audio_rel
-    if raw_path.exists():
-        return raw_path
-    if Path(audio_rel).suffix:
-        return raw_path
-    wav_path = raw_path.with_suffix(".wav")
-    return wav_path if wav_path.exists() else raw_path
+    normalized = Path(audio_rel.replace("\\", "/").strip())
+    if normalized.is_absolute():
+        return normalized
+
+    candidate = (
+        project_dir / "recordings" / "wav_22050" / normalized.name
+        if len(normalized.parts) == 1
+        else project_dir / normalized
+    )
+    if candidate.suffix:
+        return candidate
+    return candidate.with_suffix(".wav")

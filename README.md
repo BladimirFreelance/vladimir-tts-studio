@@ -9,6 +9,20 @@
 5. Тест синтеза
 6. Диагностика (`doctor`)
 
+## Windows prerequisites
+
+- Python 3.12
+- Git for Windows
+- **eSpeak NG (exe)**: установите отдельно, это не Python-пакет.
+
+Проверка:
+
+```powershell
+espeak-ng --version
+# или
+& "C:\Program Files\eSpeak NG\espeak-ng.exe" --version
+```
+
 ## Авто-установка зависимостей (рекомендуется для PyCharm Terminal)
 
 Теперь можно запустить один скрипт, который создаст `.venv`, обновит `pip`, установит зависимости проекта, PyTorch, `piper-tts` (runtime) и Piper training-модули:
@@ -42,6 +56,14 @@ python scripts/00_setup_env.py --require-piper-training   # упасть с ош
 - **Fallback**: если CUDA-колёса не ставятся, на Windows пробует DirectML и затем CPU, на других ОС — CPU.
 
 Для ручного контроля можно явно указать `--torch`.
+
+## One-click (чистый клон, Windows PowerShell)
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\00_one_click.ps1 -Project ddn_vladimir -Text .\data\projects\ddn_vladimir\input_texts\testdata.txt
+```
+
+Скрипт создаёт `.venv`, ставит проект, переключает `piper-tts` на `piper1-gpl` (editable), проверяет `piper.train`, проверяет `eSpeak NG`, запускает `doctor`, затем `train`.
 
 ## Быстрый старт (PyCharm / обычный `python`)
 
@@ -92,7 +114,7 @@ python -m app.main record --project ddn_vladimir --port 8765
 
 - Manifest: `data/projects/PROJECT_NAME/metadata/train.csv`
 - Разделитель строго `|` (`audio|text`), UTF-8, **без заголовка**
-- `audio` путь относительный к корню проекта без расширения (`recordings/wav_22050/ID`)
+- `audio` = только имя WAV-файла (`ddn_vladimir_00001.wav`)
 
 ## Doctor checks
 

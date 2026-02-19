@@ -22,7 +22,7 @@ text:
     )
 
 
-def test_prepare_dataset_creates_manifest_without_wav_suffix(monkeypatch, tmp_path: Path) -> None:
+def test_prepare_dataset_creates_manifest_with_leaf_wav_filename(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.chdir(tmp_path)
     _write_test_config(tmp_path)
 
@@ -43,8 +43,7 @@ def test_prepare_dataset_creates_manifest_without_wav_suffix(monkeypatch, tmp_pa
 
     manifest = tmp_path / "data" / "projects" / project / "metadata" / "train.csv"
     rows = manifest.read_text(encoding="utf-8").strip().splitlines()
-    assert rows[0].startswith(f"recordings/wav_22050/{audio_id}|")
-    assert ".wav|" not in rows[0]
+    assert rows[0].startswith(f"{audio_id}.wav|")
 
     converted = recordings_dir / f"{audio_id}.wav"
     info = inspect_wav(converted)
