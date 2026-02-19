@@ -25,35 +25,19 @@ espeak-ng --version
 
 ## Windows Quick Start (важно!)
 
-После свежего clone запускайте проект только из `.venv`, чтобы не попасть в случайно активное окружение (`.venv1` и т.п.).
+После свежего clone запускайте проект только из `.venv`, чтобы не попасть в случайно активное окружение (`.venv1` и т.п.). `(.venv1)` не используйте.
 
-### Шаг A: bootstrap и активация `.venv` в текущей сессии PowerShell
-
-```powershell
-. .\scripts\00_bootstrap.ps1
-```
-
-Первая точка (`.`) **обязательна**: это dot-sourcing, он активирует `.venv` именно в текущей сессии PowerShell.
-
-### Шаг B: установка зависимостей
-
-Вариант 1:
+### После clone: один шаг setup
 
 ```powershell
-python scripts/00_setup_env.py --require-piper-training
+. .\scripts\setup.ps1
 ```
 
-Вариант 2 (то же самое через bootstrap):
-
-```powershell
-. .\scripts\00_bootstrap.ps1 -Install
-```
+Первая точка (`.`) **обязательна**: это dot-sourcing, он создаёт/активирует `.venv` в текущей сессии, ставит зависимости и делает проверки `piper.espeakbridge` + `piper.train.vits`.
 
 Запуск обучения после setup:
 
 ```powershell
-$env:CUDA_DEVICE_ORDER="PCI_BUS_ID"
-$env:CUDA_VISIBLE_DEVICES="1"
 python -m app.main train --project ddn_vladimir
 ```
 
@@ -79,7 +63,7 @@ python scripts/00_setup_env.py --with-piper-training     # явное включ
 python scripts/00_setup_env.py --require-piper-training   # упасть с ошибкой, если training-модули не установились
 ```
 
-> При `--require-piper-training` setup автоматически ставит training-ветку из `OHF-Voice/piper1-gpl`, затем проверяет `piper.train.vits` и `python -m piper.train --help`.
+> При `--require-piper-training` setup подготавливает `third_party/piper1-gpl` и проверяет `piper.train.vits` через bootstrap без замены runtime-пакета `piper-tts`.
 
 ## Обучение на GPU в Windows (без WSL)
 
@@ -97,7 +81,7 @@ python scripts/00_setup_env.py --require-piper-training   # упасть с ош
 powershell -ExecutionPolicy Bypass -File .\scripts\00_one_click.ps1 -Project ddn_vladimir -Text .\data\projects\ddn_vladimir\input_texts\testdata.txt
 ```
 
-Скрипт создаёт `.venv`, ставит проект, переключает `piper-tts` на `piper1-gpl` (editable), проверяет `piper.train`, проверяет `eSpeak NG`, запускает `doctor`, затем `train`.
+Скрипт создаёт `.venv`, ставит проект, проверяет `piper.train` и `eSpeak NG`, запускает `doctor`, затем `train`.
 
 ## Быстрый старт (PyCharm / обычный `python`)
 
@@ -202,7 +186,7 @@ python scripts/06_doctor.py --project PROJECT_NAME --auto-fix
 
 ```bash
 # 1) указать явную команду обучения (PowerShell)
-$env:PIPER_TRAIN_CMD="python -m piper.train"
+$env:PIPER_TRAIN_CMD="python -m training.piper_train_bootstrap"
 
 # 2) или переустановить окружение (по умолчанию training ставится автоматически)
 python scripts/00_setup_env.py
@@ -216,7 +200,7 @@ Smoke test после setup:
 ```bash
 python scripts/00_setup_env.py --require-piper-training
 python -c "import importlib.util as u; print(u.find_spec('piper.train.vits'))"
-python -m piper.train --help
+python -m training.piper_train_bootstrap --help
 ```
 
 После этого снова запустите обучение из студии.
