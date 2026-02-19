@@ -4,6 +4,7 @@ $isDotSourced = $MyInvocation.InvocationName -eq '.'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location $repoRoot
 
+codex/run-setup-script-in-powershell-epucpy
 function Test-PythonCommand {
     param([string[]]$PythonCommand)
 
@@ -28,11 +29,17 @@ function Find-WorkingPython {
         if ($version) {
             return @{ Command = @('python'); Version = $version }
         }
+function Resolve-Python {
+    $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
+    if ($pythonCmd -and $pythonCmd.Source -and -not $pythonCmd.Source.Contains('WindowsApps')) {
+        return @('python')
+main
     }
 
     $pyCmd = Get-Command py -ErrorAction SilentlyContinue
     if ($pyCmd) {
         foreach ($candidate in @('-3.12', '-3.11', '-3')) {
+codex/run-setup-script-in-powershell-epucpy
             $version = Test-PythonCommand -PythonCommand @('py', $candidate)
             if ($version) {
                 return @{ Command = @('py', $candidate); Version = $version }
@@ -84,6 +91,15 @@ function Resolve-Python {
     }
 
     throw "Не найден рабочий Python (>=3.11). Установите Python 3.12 с https://www.python.org/downloads/windows/ (включите Add python.exe to PATH), либо установите через winget: winget install -e --id Python.Python.3.12"
+            $probe = & py $candidate -c "import sys; print('.'.join(map(str, sys.version_info[:3])))" 2>$null
+            if ($LASTEXITCODE -eq 0 -and $probe) {
+                return @('py', $candidate)
+            }
+        }
+    }
+
+    throw "Не найден рабочий Python (>=3.11). Установите Python 3.11/3.12 и добавьте его в PATH (или установите py launcher)."
+main
 }
 
 function Invoke-WithPython {
@@ -113,9 +129,12 @@ $activateScript = Join-Path $venvDir 'Scripts\Activate.ps1'
 
 if (-not (Test-Path $venvDir)) {
     Write-Host '[i] Создаю .venv ...'
+codex/run-setup-script-in-powershell-epucpy
     $pythonInfo = Resolve-Python
     $python = $pythonInfo.Command
     Write-Host "[i] Использую Python $($pythonInfo.Version) через: $($python -join ' ')"
+    $python = Resolve-Python
+main
     Invoke-WithPython -PythonCommand $python -Arguments @('-m', 'venv', '.venv')
 }
 
