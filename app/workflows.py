@@ -83,7 +83,5 @@ def prepare_dataset(text_file: Path, project: str) -> None:
         project_dir, [audio_id for audio_id, _text in indexed], sample_rate=22050
     )
 
-    manifest_rows = [
-        (f"recordings/wav_22050/{audio_id}", text) for audio_id, text in indexed
-    ]
+    manifest_rows = [(f"{audio_id}.wav", text) for audio_id, text in indexed]
     write_manifest(project_dir / "metadata" / "train.csv", manifest_rows)

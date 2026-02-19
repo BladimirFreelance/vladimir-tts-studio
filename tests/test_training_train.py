@@ -22,7 +22,7 @@ def _prepare_project(tmp_path: Path) -> Path:
 
 def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("training.train.ensure_espeakbridge_import", lambda: None)
-    monkeypatch.setattr("training.train.detect_supported_gpu_or_raise", lambda: None)
+    monkeypatch.setattr("training.train.detect_supported_gpu_or_raise", lambda: {})
     monkeypatch.setattr(
         "training.train.load_yaml",
         lambda _path: {
@@ -37,7 +37,7 @@ def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr(
         "training.train.read_manifest",
-        lambda _manifest: [("recordings/wav_22050/001.wav", "text")],
+        lambda _manifest: [("001.wav", "text")],
     )
     monkeypatch.setattr("training.train.write_json", lambda *args, **kwargs: None)
 
@@ -132,46 +132,50 @@ def test_run_training_allows_batch_size_override(
 
     run_training(project_dir, epochs=1, batch_size=8)
 
-    index = captured["cmd"].index("--model.batch_size")
+    index = captured["cmd"].index("--data.batch_size")
     assert captured["cmd"][index + 1] == "8"
 
 
-def test_run_training_error_includes_real_project_name(
+def test_run_training_checks_audio_in_wav_22050(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
-
     monkeypatch.setattr(
         "training.train.read_manifest",
-        lambda _manifest: [("recordings/wav_22050/missing.wav", "text")],
+        lambda _manifest: [("missing.wav", "text")],
     )
 
-    with pytest.raises(RuntimeError, match=project_dir.name) as exc_info:
+    with pytest.raises(RuntimeError, match="recordings/wav_22050"):
         run_training(project_dir, epochs=1)
 
-    assert "<name>" not in str(exc_info.value)
 
-
-def test_detect_supported_gpu_or_raise_reports_unsupported_gpu(
+def test_detect_supported_gpu_or_raise_uses_first_compatible(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(
             is_available=lambda: True,
-            current_device=lambda: 0,
-            get_device_name=lambda _idx: "Old GPU",
-            get_device_capability=lambda _idx: (5, 0),
+            device_count=lambda: 2,
+            get_device_name=lambda idx: ["RTX 5060 Ti", "RTX 3060"][idx],
+            get_device_capability=lambda idx: [(12, 0), (8, 6)][idx],
             synchronize=lambda _idx: None,
         ),
-        zeros=lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            RuntimeError(
-                "CUDA error: no kernel image is available for execution on the device"
-            )
-        ),
-        version=types.SimpleNamespace(cuda="12.1"),
+        zeros=lambda *_args, **kwargs: (_ for _ in ()).throw(
+            RuntimeError("no kernel image is available")
+        )
+        if kwargs.get("device") == "cuda:0"
+        else 0,
     )
     monkeypatch.setattr(train_module, "torch", fake_torch)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
 
-    with pytest.raises(RuntimeError, match="Old GPU"):
-        train_module.detect_supported_gpu_or_raise()
+    env_patch = train_module.detect_supported_gpu_or_raise()
+
+    assert env_patch == {"CUDA_VISIBLE_DEVICES": "1"}
+
+
+def test_detect_supported_gpu_or_raise_respects_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "1")
+    env_patch = train_module.detect_supported_gpu_or_raise()
+    assert env_patch == {}
