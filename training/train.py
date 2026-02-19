@@ -41,20 +41,20 @@ def discover_warmstart() -> str | None:
 
 def resolve_train_base_command() -> list[str]:
     """Resolve Piper training entrypoint for the current environment."""
-    try:
-        if importlib.util.find_spec("piper.train") is not None:
-            return [sys.executable, "-m", "piper.train"]
-    except ModuleNotFoundError:
-        pass
-
     train_cmd = os.getenv("PIPER_TRAIN_CMD")
     if train_cmd:
         return shlex.split(train_cmd)
 
+    try:
+        if importlib.util.find_spec("training.piper_train_bootstrap") is not None:
+            return [sys.executable, "-m", "training.piper_train_bootstrap"]
+    except ModuleNotFoundError:
+        pass
+
     raise RuntimeError(
-        "Не найден модуль обучения Piper (piper.train). "
+        "Не найден bootstrap для обучения Piper (training.piper_train_bootstrap). "
         "Запустите scripts/00_setup_env.py --require-piper-training, "
-        "или задайте PowerShell-переменную: $env:PIPER_TRAIN_CMD=\"python -m piper.train\"."
+        "или задайте PowerShell-переменную: $env:PIPER_TRAIN_CMD=\"python -m training.piper_train_bootstrap\"."
     )
 
 

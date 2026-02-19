@@ -42,7 +42,7 @@ def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("training.train.write_json", lambda *args, **kwargs: None)
 
 
-def test_run_training_uses_current_interpreter_by_default(
+def test_run_training_uses_bootstrap_module_by_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _stub_dependencies(monkeypatch)
@@ -56,7 +56,7 @@ def test_run_training_uses_current_interpreter_by_default(
     monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
     monkeypatch.setattr(
         "training.train.importlib.util.find_spec",
-        lambda name: object() if name == "piper.train" else None,
+        lambda name: object() if name == "training.piper_train_bootstrap" else None,
     )
     monkeypatch.setattr("training.train.subprocess.run", fake_run)
 
@@ -65,7 +65,7 @@ def test_run_training_uses_current_interpreter_by_default(
     assert captured["cmd"][:4] == [
         __import__("sys").executable,
         "-m",
-        "piper.train",
+        "training.piper_train_bootstrap",
         "fit",
     ]
 
@@ -99,7 +99,7 @@ def test_run_training_uses_vocoder_warmstart_ckpt_and_not_resume(
 
     monkeypatch.setattr(
         "training.train.resolve_train_base_command",
-        lambda: ["python", "-m", "piper.train"],
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
     )
     monkeypatch.setattr(
         "training.train.subprocess.run",
@@ -123,7 +123,7 @@ def test_run_training_allows_batch_size_override(
 
     monkeypatch.setattr(
         "training.train.resolve_train_base_command",
-        lambda: ["python", "-m", "piper.train"],
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
     )
     monkeypatch.setattr(
         "training.train.subprocess.run",
