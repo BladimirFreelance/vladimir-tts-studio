@@ -4,6 +4,7 @@ import argparse
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -13,14 +14,14 @@ PIPER_GPL_REPO = "https://github.com/OHF-Voice/piper1-gpl.git"
 
 
 def run(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
-    print(f"\n>>> {' '.join(cmd)}")
+    print(f"\n>>> {shlex.join(cmd)}")
     subprocess.run(cmd, check=True, env=env)
 
 
 def run_result(
     cmd: list[str], *, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
-    print(f"\n>>> {' '.join(cmd)}")
+    print(f"\n>>> {shlex.join(cmd)}")
     return subprocess.run(cmd, check=False, env=env, capture_output=True, text=True)
 
 
@@ -291,59 +292,64 @@ def clone_or_update_piper_training_repo(target_dir: Path) -> None:
 
 
 def verify_piper_training_install(python_cmd: list[str]) -> bool:
-    probe = (
-        "import importlib.util as u;"
-        "assert u.find_spec('piper.train.vits') is not None"
-    )
+    probe = "import importlib.util as u; print(u.find_spec('piper.train.vits'))"
     completed = run_result(python_cmd + ["-c", probe])
-    if completed.returncode != 0:
+    if completed.returncode != 0 or "None" in completed.stdout:
         return False
-
-    help_cmd = run_result(python_cmd + ["-m", "piper.train", "--help"])
-    return help_cmd.returncode == 0
+    return True
 
 
 def install_piper_training(
     pip_cmd: list[str],
     python_cmd: list[str],
-    source: str,
+    repo_root: Path,
     *,
     allow_missing: bool = False,
 ) -> bool:
     print("[i] Устанавливаю Piper training-модули...")
-    repo_dir = Path("third_party") / "piper1-gpl"
-    attempts = [source]
-    editable_path = f"{repo_dir / 'src' / 'python'}[train]"
-    if editable_path not in attempts:
-        attempts.append(editable_path)
-    git_source = f"piper-tts[train] @ git+{PIPER_GPL_REPO}"
-    if git_source not in attempts:
-        attempts.append(git_source)
+    repo_dir = repo_root / "third_party" / "piper1-gpl"
+
+    run_result(pip_cmd + ["uninstall", "-y", "piper-tts"])
 
     try:
         clone_or_update_piper_training_repo(repo_dir)
-    except subprocess.CalledProcessError:
-        print("[!] Не удалось обновить локальный clone piper1-gpl. Перехожу к pip git-install.")
+    except subprocess.CalledProcessError as error:
+        print(f"[!] Не удалось подготовить локальный clone piper1-gpl: {error}")
+        if allow_missing:
+            print("[WARN] Piper training missing")
+            return False
+        raise RuntimeError("Не удалось клонировать/обновить third_party/piper1-gpl") from error
 
-    for candidate in attempts:
-        print(f"[i] Попытка установки Piper training из: {candidate}")
-        install_args = ["install", "-e", candidate] if "src/python" in candidate else ["install", candidate]
-        completed = run_result(pip_cmd + install_args)
+    install_attempts = [["install", "-e", ".[train]"], ["install", "-e", "."]]
+    for install_args in install_attempts:
+        print(f"[i] Установка из {repo_dir}: {' '.join(install_args)}")
+        completed = subprocess.run(
+            pip_cmd + install_args,
+            check=False,
+            capture_output=True,
+            text=True,
+            cwd=repo_dir,
+        )
+        print(f"\n>>> {shlex.join(pip_cmd + install_args)} (cwd={repo_dir})")
         if completed.stdout:
             print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
         if completed.returncode != 0:
             if completed.stderr:
                 print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
-            print(f"[!] Не удалось установить источник: {candidate}")
             continue
 
         if verify_piper_training_install(python_cmd):
-            print("[i] Piper training CLI доступен: python -m piper.train")
+            print("[OK] Piper training available: piper.train.vits")
+            return True
+
+        help_cmd = run_result(python_cmd + ["-m", "piper.train", "--help"])
+        if help_cmd.returncode == 0:
+            print("[OK] Piper training available: piper.train.vits")
             return True
 
     msg = "Не удалось установить Piper training-модули (требуется piper.train.vits и python -m piper.train)."
     if allow_missing:
-        print(f"[!] {msg}")
+        print(f"[WARN] {msg}")
         print(
             "[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет."
         )
@@ -352,14 +358,15 @@ def install_piper_training(
         )
         return False
 
-    raise RuntimeError(
-        f"{msg}\n"
-        "Проверьте git/pip, затем повторите:\n"
-        "python scripts/00_setup_env.py --require-piper-training\n"
-        "Проверка вручную:\n"
-        "python -c \"import importlib.util as u; assert u.find_spec('piper.train.vits') is not None\"\n"
-        "python -m piper.train --help"
-    )
+    raise RuntimeError(f"""[FAIL] Piper training missing
+{msg}
+Команды ручного восстановления:
+git clone {PIPER_GPL_REPO} third_party/piper1-gpl
+{shlex.join(python_cmd)} -m pip uninstall -y piper-tts
+cd third_party/piper1-gpl
+{shlex.join(python_cmd)} -m pip install -e .[train]
+{shlex.join(python_cmd)} -c \"import importlib.util as u; print(u.find_spec('piper.train.vits'))\"
+{shlex.join(python_cmd)} -m piper.train --help""")
 
 
 def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str]) -> None:
@@ -424,8 +431,8 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--piper-training-source",
-        default="piper-tts[train] @ git+https://github.com/OHF-Voice/piper1-gpl.git",
-        help="Источник для установки training-модулей Piper",
+        default="third_party/piper1-gpl",
+        help="Устаревший аргумент (игнорируется, training ставится editable из third_party/piper1-gpl)",
     )
     parser.add_argument(
         "--require-piper-training",
@@ -469,12 +476,21 @@ def main() -> int:
 
     install_training = args.with_piper_training or not args.without_piper_training
     if install_training:
-        install_piper_training(
-            pip_cmd,
-            python_cmd,
-            args.piper_training_source,
-            allow_missing=not args.require_piper_training,
-        )
+        try:
+            install_piper_training(
+                pip_cmd,
+                python_cmd,
+                repo_root,
+                allow_missing=not args.require_piper_training,
+            )
+        except RuntimeError as error:
+            print(error)
+            return 1
+    elif not verify_piper_training_install(python_cmd):
+        if args.require_piper_training:
+            print("[FAIL] Piper training missing (указан --require-piper-training)")
+            return 1
+        print("[WARN] Piper training missing")
 
     print_system_hints()
 
@@ -484,6 +500,9 @@ def main() -> int:
         print(
             "[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py --with-piper-training"
         )
+    print(
+        "[i] Проверка training после установки: python -c \"import importlib.util as u; print(u.find_spec('piper.train.vits'))\""
+    )
     return 0
 
 
