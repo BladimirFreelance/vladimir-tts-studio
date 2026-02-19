@@ -55,7 +55,7 @@ python scripts/00_setup_env.py
 powershell -ExecutionPolicy Bypass -File .\scripts\00_setup_env.ps1
 ```
 
-Она подберёт рабочий интерпретатор (`python` или `py -3.12`) и передаст все аргументы в `00_setup_env.py`.
+Она подберёт рабочий интерпретатор (`python`, `py -3.12`, `py -3.11`, `py -3`). Если Python вообще не установлен, скрипт попытается установить `Python 3.12` через `winget` (user scope), затем продолжит setup автоматически.
 
 Полезные варианты:
 
