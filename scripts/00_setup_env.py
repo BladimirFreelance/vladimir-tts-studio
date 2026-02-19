@@ -349,9 +349,12 @@ git clone {PIPER_GPL_REPO} third_party/piper1-gpl
 {shlex.join(python_cmd)} -c \"import piper; from pathlib import Path; p=Path('third_party/piper1-gpl/src/piper').resolve(); piper.__path__.append(str(p)); import piper.train.vits as v; print('OK', v.__file__)\"""")
 
 
-def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str]) -> None:
-    print("[i] Устанавливаю Piper runtime (piper-tts)...")
-    run(pip_cmd + ["install", "piper-tts"])
+def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str], repo_root: Path) -> None:
+    print("[i] Устанавливаю Piper runtime/espeakbridge из third_party/piper1-gpl[train]...")
+    repo_dir = repo_root / "third_party" / "piper1-gpl"
+    clone_or_update_piper_training_repo(repo_dir)
+    run(pip_cmd + ["uninstall", "-y", "piper-tts"])
+    run(pip_cmd + ["install", "-e", f"{repo_dir}[train]"])
     if not module_available(python_cmd, "piper.espeakbridge"):
         raise RuntimeError(
             "Piper runtime установлен некорректно: модуль piper.espeakbridge не найден"
@@ -449,7 +452,7 @@ def main() -> int:
 
     install_torch(pip_cmd, args.torch)
     print_torch_summary(python_cmd)
-    install_piper_runtime(pip_cmd, python_cmd)
+    install_piper_runtime(pip_cmd, python_cmd, repo_root)
 
     if args.extras:
         run(pip_cmd + ["install", *args.extras])

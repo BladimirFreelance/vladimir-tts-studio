@@ -73,7 +73,7 @@ if (-not (Test-Path $venvPython)) {
 & $venvPython -m pip install --upgrade pip setuptools wheel
 & $venvPython -m pip install -e .
 
-$depsRoot = Join-Path $repoRoot '.deps'
+$depsRoot = Join-Path $repoRoot 'third_party'
 $piperDir = Join-Path $depsRoot 'piper1-gpl'
 $piperRepo = 'https://github.com/OHF-Voice/piper1-gpl.git'
 $piperRef = 'origin/main'
@@ -87,7 +87,8 @@ git -C $piperDir fetch --all --tags
 git -C $piperDir checkout $piperRef
 
 & $venvPython -m pip uninstall -y piper-tts
-& $venvPython -m pip install -e $piperDir
+$piperEditableSpec = "$piperDir[train]"
+& $venvPython -m pip install -e $piperEditableSpec
 
 & $venvPython -c "import importlib.util as u; assert u.find_spec('piper.train.vits') is not None"
 & $venvPython -m piper.train --help | Out-Null
