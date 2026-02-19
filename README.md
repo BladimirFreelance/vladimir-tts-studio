@@ -43,7 +43,7 @@ python -m app.main train --project ddn_vladimir
 
 ## Авто-установка зависимостей (рекомендуется для PyCharm Terminal)
 
-Теперь можно запустить один скрипт, который создаст `.venv`, обновит `pip`, установит зависимости проекта, PyTorch, `piper-tts` (runtime) и Piper training-модули:
+Теперь можно запустить один скрипт, который создаст `.venv`, обновит `pip`, установит зависимости проекта, PyTorch и Piper (`third_party/piper1-gpl[train]`) для runtime + training:
 
 ```bash
 python scripts/00_setup_env.py
@@ -71,7 +71,7 @@ python scripts/00_setup_env.py --with-piper-training     # явное включ
 python scripts/00_setup_env.py --require-piper-training   # упасть с ошибкой, если training-модули не установились
 ```
 
-> При `--require-piper-training` setup подготавливает `third_party/piper1-gpl` и проверяет `piper.train.vits` через bootstrap без замены runtime-пакета `piper-tts`.
+> При `--require-piper-training` setup подготавливает `third_party/piper1-gpl`, ставит `-e "./third_party/piper1-gpl[train]"` и проверяет `piper.train.vits`.
 
 ## Обучение на GPU в Windows (без WSL)
 
@@ -161,11 +161,11 @@ python -m app.main record --project ddn_vladimir --port 8765
 
 ## Piper/espeakbridge
 
-- Runtime/инференс ожидает установленный `piper-tts`.
+- Runtime/инференс ожидает установленный editable-пакет `third_party/piper1-gpl[train]` (в `.venv`).
 - Если `doctor` пишет `ImportError: piper.espeakbridge`:
 
 ```bash
-pip install piper-tts
+./.venv/Scripts/python.exe -m pip install -e "./third_party/piper1-gpl[train]"
 ```
 
 ## Опциональные улучшения в проекте
