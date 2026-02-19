@@ -49,6 +49,14 @@ python -m app.main train --project ddn_vladimir
 python scripts/00_setup_env.py
 ```
 
+Если в PowerShell команда `python scripts/00_setup_env.py` возвращает только `Python` (частый случай с alias из `WindowsApps`), используйте обёртку:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\00_setup_env.ps1
+```
+
+Она подберёт рабочий интерпретатор (`python` или `py -3.12`) и передаст все аргументы в `00_setup_env.py`.
+
 Полезные варианты:
 
 ```bash
