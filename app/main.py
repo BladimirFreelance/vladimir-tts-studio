@@ -10,13 +10,28 @@ if __package__ in (None, ""):
     # пакетом `app`, установленным в окружении.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.doctor import run_doctor
-from studio.server import run_server
-from training.export_onnx import export_onnx
-from training.infer import synth_with_piper
-from training.train import run_training
-from app.workflows import prepare_dataset
-from utils import setup_logging
+
+
+def ensure_project_venv_for_critical_commands(cmd: str) -> None:
+    if cmd not in {"train", "doctor"}:
+        return
+
+    repo_root = Path(__file__).resolve().parent.parent
+    project_venv = repo_root / ".venv"
+    if not project_venv.exists():
+        return
+
+    current_python = Path(sys.executable).resolve()
+    in_project_venv = project_venv.resolve() in current_python.parents
+    if in_project_venv:
+        return
+
+    print(
+        "Вы сейчас запускаете проект не из .venv. "
+        "Активируйте .\\.venv\\Scripts\\Activate.ps1\n"
+        "или выполните: . .\\scripts\\00_bootstrap.ps1"
+    )
+    raise SystemExit(1)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -68,11 +83,18 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    setup_logging()
     parser = build_parser()
     args = parser.parse_args()
+    ensure_project_venv_for_critical_commands(args.cmd)
+
+    from utils import setup_logging
+
+    setup_logging()
 
     if args.cmd == "prepare":
+        from app.workflows import prepare_dataset
+        from app.doctor import run_doctor
+
         prepare_dataset(Path(args.text), args.project)
         code = run_doctor(
             Path("data/projects") / args.project, auto_fix=False, require_audio=False
@@ -82,6 +104,8 @@ def main() -> None:
                 "Prepare finished with doctor warnings. Continue to recording step."
             )
     elif args.cmd == "record":
+        from studio.server import run_server
+
         logging.info(
             "Starting studio UI for project '%s' on port %s "
             "(recordings -> data/projects/%s/recordings/wav_22050/)",
@@ -91,6 +115,8 @@ def main() -> None:
         )
         run_server(Path("data/projects") / args.project, port=args.port)
     elif args.cmd == "train":
+        from training.train import run_training
+
         run_training(
             Path("data/projects") / args.project,
             epochs=args.epochs,
@@ -98,6 +124,8 @@ def main() -> None:
             batch_size=args.batch_size,
         )
     elif args.cmd == "export":
+        from training.export_onnx import export_onnx
+
         onnx, cfg = export_onnx(
             args.project,
             Path("data/projects") / args.project,
@@ -105,6 +133,8 @@ def main() -> None:
         )
         logging.info("Exported %s and %s", onnx, cfg)
     elif args.cmd == "test":
+        from training.infer import synth_with_piper
+
         synth_with_piper(
             Path(args.model),
             args.text,
@@ -113,6 +143,8 @@ def main() -> None:
             config_path=Path(args.config) if args.config else None,
         )
     elif args.cmd == "doctor":
+        from app.doctor import run_doctor
+
         code = run_doctor(Path("data/projects") / args.project, auto_fix=args.auto_fix)
         raise SystemExit(code)
 

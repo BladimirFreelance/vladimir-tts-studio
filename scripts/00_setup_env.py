@@ -292,10 +292,13 @@ def clone_or_update_piper_training_repo(target_dir: Path) -> None:
 
 
 def verify_piper_training_install(python_cmd: list[str]) -> bool:
-    probe = "import importlib.util as u; print(u.find_spec('piper.train.vits'))"
+    probe = "import piper.train.vits as v; print('OK', v.__file__)"
     completed = run_result(python_cmd + ["-c", probe])
-    if completed.returncode != 0 or "None" in completed.stdout:
+    if completed.returncode != 0:
+        if completed.stderr:
+            print(completed.stderr)
         return False
+    print(completed.stdout.strip())
     return True
 
 
@@ -320,32 +323,28 @@ def install_piper_training(
             return False
         raise RuntimeError("Не удалось клонировать/обновить third_party/piper1-gpl") from error
 
-    install_attempts = [["install", "-e", ".[train]"], ["install", "-e", "."]]
-    for install_args in install_attempts:
-        print(f"[i] Установка из {repo_dir}: {' '.join(install_args)}")
-        completed = subprocess.run(
-            pip_cmd + install_args,
-            check=False,
-            capture_output=True,
-            text=True,
-            cwd=repo_dir,
-        )
-        print(f"\n>>> {shlex.join(pip_cmd + install_args)} (cwd={repo_dir})")
-        if completed.stdout:
-            print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
-        if completed.returncode != 0:
-            if completed.stderr:
-                print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
-            continue
+    editable_target = "./third_party/piper1-gpl[train]"
+    completed = subprocess.run(
+        pip_cmd + ["install", "-e", editable_target],
+        check=False,
+        capture_output=True,
+        text=True,
+        cwd=repo_root,
+    )
+    print(f"\n>>> {shlex.join(pip_cmd + ['install', '-e', editable_target])} (cwd={repo_root})")
+    if completed.stdout:
+        print(completed.stdout, end="" if completed.stdout.endswith("\n") else "\n")
+    if completed.returncode != 0 and completed.stderr:
+        print(completed.stderr, end="" if completed.stderr.endswith("\n") else "\n")
 
-        if verify_piper_training_install(python_cmd):
-            print("[OK] Piper training available: piper.train.vits")
-            return True
+    if completed.returncode == 0 and verify_piper_training_install(python_cmd):
+        print("[OK] Piper training available: piper.train.vits")
+        return True
 
-        help_cmd = run_result(python_cmd + ["-m", "piper.train", "--help"])
-        if help_cmd.returncode == 0:
-            print("[OK] Piper training available: piper.train.vits")
-            return True
+    help_cmd = run_result(python_cmd + ["-m", "piper.train", "--help"])
+    if help_cmd.returncode == 0 and verify_piper_training_install(python_cmd):
+        print("[OK] Piper training available: piper.train.vits")
+        return True
 
     msg = "Не удалось установить Piper training-модули (требуется piper.train.vits и python -m piper.train)."
     if allow_missing:
@@ -363,9 +362,8 @@ def install_piper_training(
 Команды ручного восстановления:
 git clone {PIPER_GPL_REPO} third_party/piper1-gpl
 {shlex.join(python_cmd)} -m pip uninstall -y piper-tts
-cd third_party/piper1-gpl
-{shlex.join(python_cmd)} -m pip install -e .[train]
-{shlex.join(python_cmd)} -c \"import importlib.util as u; print(u.find_spec('piper.train.vits'))\"
+{shlex.join(python_cmd)} -m pip install -e ./third_party/piper1-gpl[train]
+{shlex.join(python_cmd)} -c \"import piper.train.vits as v; print('OK', v.__file__)\"
 {shlex.join(python_cmd)} -m piper.train --help""")
 
 
@@ -492,6 +490,12 @@ def main() -> int:
             return 1
         print("[WARN] Piper training missing")
 
+    if args.require_piper_training and not verify_piper_training_install(python_cmd):
+        print("[FAIL] Не удалось импортировать piper.train.vits после установки.")
+        print("[HINT] Запустите из активированного .venv:")
+        print("python scripts/00_setup_env.py --require-piper-training")
+        return 1
+
     print_system_hints()
 
     print("\nГотово. Рекомендуется проверить окружение:")
@@ -501,7 +505,7 @@ def main() -> int:
             "[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py --with-piper-training"
         )
     print(
-        "[i] Проверка training после установки: python -c \"import importlib.util as u; print(u.find_spec('piper.train.vits'))\""
+        "[i] Проверка training после установки: python -c \"import piper.train.vits as v; print('OK', v.__file__)\""
     )
     return 0
 

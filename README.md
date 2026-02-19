@@ -23,6 +23,40 @@ espeak-ng --version
 & "C:\Program Files\eSpeak NG\espeak-ng.exe" --version
 ```
 
+## Windows Quick Start (важно!)
+
+После свежего clone запускайте проект только из `.venv`, чтобы не попасть в случайно активное окружение (`.venv1` и т.п.).
+
+### Шаг A: bootstrap и активация `.venv` в текущей сессии PowerShell
+
+```powershell
+. .\scripts\00_bootstrap.ps1
+```
+
+Первая точка (`.`) **обязательна**: это dot-sourcing, он активирует `.venv` именно в текущей сессии PowerShell.
+
+### Шаг B: установка зависимостей
+
+Вариант 1:
+
+```powershell
+python scripts/00_setup_env.py --require-piper-training
+```
+
+Вариант 2 (то же самое через bootstrap):
+
+```powershell
+. .\scripts\00_bootstrap.ps1 -Install
+```
+
+Запуск обучения после setup:
+
+```powershell
+$env:CUDA_DEVICE_ORDER="PCI_BUS_ID"
+$env:CUDA_VISIBLE_DEVICES="1"
+python -m app.main train --project ddn_vladimir
+```
+
 ## Авто-установка зависимостей (рекомендуется для PyCharm Terminal)
 
 Теперь можно запустить один скрипт, который создаст `.venv`, обновит `pip`, установит зависимости проекта, PyTorch, `piper-tts` (runtime) и Piper training-модули:
