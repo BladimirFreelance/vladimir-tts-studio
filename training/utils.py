@@ -4,11 +4,15 @@ import importlib
 import sys
 
 
-def ensure_espeakbridge_import() -> None:
-    """Make `piper.espeakbridge` importable, with fallback for mixed piper installs."""
+def ensure_espeakbridge_import() -> bool:
+    """Try to make `piper.espeakbridge` importable.
+
+    Returns True on success and False on failure (with warning),
+    so callers can decide whether this is fatal for their flow.
+    """
     try:
         importlib.import_module("piper.espeakbridge")
-        return
+        return True
     except Exception:
         pass
 
@@ -16,7 +20,12 @@ def ensure_espeakbridge_import() -> None:
     try:
         module = importlib.import_module("espeakbridge")
         sys.modules["piper.espeakbridge"] = module
+        return True
     except Exception as exc:
-        raise RuntimeError(
-            "Не удалось импортировать piper.espeakbridge. Установите piper-tts: pip install piper-tts"
-        ) from exc
+        print(
+            "[WARN] Не удалось импортировать piper.espeakbridge. "
+            "Продолжаю без жёсткой проверки (doctor/training подскажут, если это критично). "
+            f"Детали: {exc}",
+            file=sys.stderr,
+        )
+        return False

@@ -309,6 +309,20 @@ def check_piper_modules(python_cmd: list[str]) -> tuple[bool, bool]:
     return has_base, has_training
 
 
+def warn_if_espeakbridge_missing(python_cmd: list[str]) -> None:
+    probe = (
+        "import importlib,sys;"
+        "ok=True;"
+        "\ntry:\n importlib.import_module('piper.espeakbridge')\n"
+        "except Exception:\n"
+        "  try:\n   m=importlib.import_module('espeakbridge');sys.modules['piper.espeakbridge']=m\n"
+        "  except Exception as e:\n"
+        "   ok=False;print('[WARN] piper.espeakbridge недоступен:', e)\n"
+        "sys.exit(0 if ok else 0)"
+    )
+    subprocess.run(python_cmd + ["-c", probe], check=False)
+
+
 def clone_or_update_piper_training_repo(target_dir: Path) -> None:
     if target_dir.exists():
         print(f"[i] Обновляю репозиторий Piper training: {target_dir}")
@@ -474,6 +488,7 @@ def main() -> int:
     install_torch(pip_cmd, args.torch)
     print_torch_summary(python_cmd)
     install_piper_runtime(pip_cmd, python_cmd, repo_root)
+    warn_if_espeakbridge_missing(python_cmd)
 
     if args.extras:
         run(pip_cmd + ["install", *args.extras])
