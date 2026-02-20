@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  windows-smoke:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bootstrap and install dependencies
+        shell: pwsh
+        run: ./scripts/00_bootstrap.ps1
+
+      - name: Install test dependencies
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -m pip install pytest pyyaml
+
+      - name: Run smoke tests
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe -m pytest tests/test_smoke_windows_ci.py -v
