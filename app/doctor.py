@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 import logging
 import shutil
 import subprocess
@@ -17,20 +16,18 @@ def check_imports() -> list[str]:
     issues: list[str] = []
 
     try:
-        importlib.import_module("piper.espeakbridge")
-        LOGGER.info("phonemizer backend: piper.espeakbridge")
-    except Exception:
-        issues.append(
-            "Runtime piper-tts phonemizer is not importable (fix: python -m pip install piper-tts==1.4.1, then python scripts/00_setup_env.py --require-piper-training)"
-        )
-
-    try:
         from training.piper_train_bootstrap import validate_runtime_and_training_imports
 
         validate_runtime_and_training_imports()
+        LOGGER.info("phonemizer backend OK: piper.espeakbridge")
+        LOGGER.info("training module OK: piper.train.vits (via bootstrap)")
+    except SystemExit:
+        issues.append(
+            "Piper runtime/training modules are not importable via bootstrap (fix: python scripts/00_setup_env.py --require-piper-training)"
+        )
     except Exception:
         issues.append(
-            "Piper training module not found via bootstrap (fix: python scripts/00_setup_env.py --require-piper-training)"
+            "Piper runtime/training modules are not importable via bootstrap (fix: python scripts/00_setup_env.py --require-piper-training)"
         )
 
     try:
@@ -229,7 +226,7 @@ def build_training_preflight_report(
     blocking: list[str] = []
     remediation: list[str] = []
 
-    if any("Piper training module not found" in issue for issue in issues):
+    if any("Piper runtime/training modules are not importable" in issue for issue in issues):
         blocking.append("Не найден Piper training модуль (piper.train.vits).")
         remediation.append("python scripts/00_setup_env.py --require-piper-training")
 
@@ -260,11 +257,6 @@ def build_training_preflight_report(
 
     if any("espeak-ng not found" in issue for issue in issues):
         remediation.append("Установите espeak-ng и добавьте его в PATH.")
-
-    if any("Runtime piper-tts phonemizer is not importable" in issue for issue in issues):
-        blocking.append("Не импортируется piper.espeakbridge из runtime piper-tts.")
-        remediation.append("python -m pip install piper-tts==1.4.1")
-        remediation.append("python scripts/00_setup_env.py --require-piper-training")
 
     return blocking, remediation
 

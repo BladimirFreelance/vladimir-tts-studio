@@ -373,16 +373,6 @@ def verify_piper_training_install(python_cmd: list[str]) -> bool:
 
 def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root: Path, *, allow_missing: bool = False) -> bool:
     print("[i] Подготавливаю Piper training-модули...")
-    repo_dir = repo_root / "third_party" / "piper1-gpl"
-
-    try:
-        clone_or_update_piper_training_repo(repo_dir)
-    except subprocess.CalledProcessError as error:
-        print(f"[!] Не удалось подготовить локальный clone piper1-gpl: {error}")
-        if allow_missing:
-            print("[WARN] Piper training missing")
-            return False
-        raise RuntimeError("Не удалось клонировать/обновить third_party/piper1-gpl") from error
 
     run(pip_cmd + ["install", "piper-tts==1.4.1"])
 
@@ -508,12 +498,20 @@ def main() -> int:
     if args.without_piper_training:
         install_training = False
 
-    requirements_path = "requirements/train.txt" if install_training else "requirements/runtime.txt"
-    run(pip_cmd + ["install", "-r", requirements_path])
-    run(pip_cmd + ["install", "-e", "."])
+    if install_training:
+        try:
+            clone_or_update_piper_training_repo(repo_root / "third_party" / "piper1-gpl")
+        except subprocess.CalledProcessError as error:
+            print(f"[!] Не удалось подготовить локальный clone piper1-gpl: {error}")
+            if args.require_piper_training:
+                return 1
 
     install_torch(pip_cmd, args.torch)
     print_torch_summary(python_cmd)
+
+    requirements_path = "requirements/train.txt" if install_training else "requirements/runtime.txt"
+    run(pip_cmd + ["install", "-r", requirements_path])
+    run(pip_cmd + ["install", "-e", "."])
 
     if args.extras:
         run(pip_cmd + ["install", *args.extras])
@@ -525,6 +523,13 @@ def main() -> int:
             print(error)
             return 1
         warn_if_espeakbridge_missing(python_cmd)
+        run(
+            python_cmd
+            + [
+                "-c",
+                "from training.piper_train_bootstrap import validate_runtime_and_training_imports; validate_runtime_and_training_imports()",
+            ]
+        )
     elif not verify_piper_training_install(python_cmd):
         install_piper_runtime(pip_cmd, python_cmd, repo_root)
         warn_if_espeakbridge_missing(python_cmd)
