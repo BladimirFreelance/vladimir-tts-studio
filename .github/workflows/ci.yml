@@ -19,7 +19,7 @@ jobs:
 
       - name: Bootstrap and install dependencies
         shell: pwsh
-        run: ./scripts/00_bootstrap.ps1 -Install
+        run: ./scripts/00_bootstrap.ps1
 
       - name: Install test dependencies
         shell: pwsh
