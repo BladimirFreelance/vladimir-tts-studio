@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib.util
 import logging
 import os
 import shlex
@@ -45,17 +44,7 @@ def resolve_train_base_command() -> list[str]:
     if train_cmd:
         return shlex.split(train_cmd)
 
-    try:
-        if importlib.util.find_spec("training.piper_train_bootstrap") is not None:
-            return [sys.executable, "-m", "training.piper_train_bootstrap"]
-    except ModuleNotFoundError:
-        pass
-
-    raise RuntimeError(
-        "Не найден bootstrap для обучения Piper (training.piper_train_bootstrap). "
-        "Запустите scripts/00_setup_env.py --require-piper-training, "
-        "или задайте PowerShell-переменную: $env:PIPER_TRAIN_CMD=\"python -m training.piper_train_bootstrap\"."
-    )
+    return [sys.executable, "-m", "training.piper_train_bootstrap"]
 
 
 def detect_supported_gpu_or_raise(
