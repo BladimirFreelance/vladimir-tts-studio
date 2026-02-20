@@ -16,6 +16,46 @@ python -m app.main train --check --project ddn_vladimir
 - иначе, если есть `ddn_vladimir` — используется `ddn_vladimir`;
 - иначе используется имя репозитория (`vladimir-tts-studio`) и выводится подсказка указать `--project`.
 
+## Runbook after clean clone (Windows, training)
+
+1. `cd` в репозиторий.
+2. Выполните bootstrap в training-режиме:
+
+```powershell
+. .\scripts\00_bootstrap.ps1 --mode training --require-piper-training
+```
+
+3. Проверьте training CLI через bootstrap:
+
+```powershell
+python -m training.piper_train_bootstrap --help
+```
+
+4. Подготовьте проект (если нет manifest):
+
+```powershell
+python -m app.main prepare --project ddn_vladimir
+```
+
+5. Запустите диагностику и авто-исправление:
+
+```powershell
+python scripts/06_doctor.py --project ddn_vladimir --auto-fix
+```
+
+6. Зафиксируйте GPU для процесса обучения:
+
+```powershell
+$env:CUDA_DEVICE_ORDER="PCI_BUS_ID"
+$env:CUDA_VISIBLE_DEVICES="1"
+```
+
+7. Запустите обучение:
+
+```powershell
+python -m app.main train --project ddn_vladimir
+```
+
 ## Автопоиск файлов
 
 - Для `prepare` теперь можно не указывать `--text`.

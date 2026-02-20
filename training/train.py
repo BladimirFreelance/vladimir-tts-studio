@@ -72,36 +72,34 @@ def _detect_phonemizer_backend(phoneme_type: str) -> str:
 
 
 def _assert_training_runtime_preflight(phoneme_type: str) -> None:
-    piper_train_available = False
+    runtime_and_training_ok = False
 
     try:
         from training.piper_train_bootstrap import validate_runtime_and_training_imports
 
         validate_runtime_and_training_imports()
-        piper_train_available = True
+        runtime_and_training_ok = True
+    except SystemExit:
+        runtime_and_training_ok = False
     except Exception:
-        piper_train_available = False
+        runtime_and_training_ok = False
 
     phonemizer_backend = _detect_phonemizer_backend(phoneme_type)
 
     LOGGER.info("[train] preflight python: %s", Path(sys.executable).resolve())
-    LOGGER.info("[train] preflight piper.train.vits: %s", piper_train_available)
     LOGGER.info("[train] preflight phonemizer backend: %s", phonemizer_backend)
+    LOGGER.info("[train] preflight training module: %s", runtime_and_training_ok)
 
-    failures: list[str] = []
-    if not piper_train_available:
-        failures.append("- Не удалось импортировать piper.train.vits через training bootstrap")
-    if phoneme_type == "espeak" and phonemizer_backend.startswith("missing"):
-        failures.append("- Не удалось импортировать piper.espeakbridge (runtime piper-tts)")
-
-    if failures:
+    if not runtime_and_training_ok:
         raise RuntimeError(
             "Training preflight failed before subprocess launch:\n"
-            + "\n".join(failures)
-            + "\nКак починить:\n"
+            "- Не удалось проверить piper.espeakbridge и piper.train.vits через training bootstrap:\n"
+            "Как починить:\n"
             "  * python -m pip install piper-tts==1.4.1\n"
             "  * python scripts/00_setup_env.py --require-piper-training"
         )
+
+
 def _log_training_runtime_info(
     *,
     project_dir: Path,
