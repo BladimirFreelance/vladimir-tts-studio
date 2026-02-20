@@ -5,6 +5,9 @@ import logging
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent
+DEFAULT_PROJECT_NAME = REPO_ROOT.name
+
 if __package__ in (None, ""):
     # Поддержка запуска как `python app/main.py ...` без конфликта с внешним
     # пакетом `app`, установленным в окружении.
@@ -43,8 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s_prepare = sub.add_parser("prepare")
-    s_prepare.add_argument("--text", required=True)
-    s_prepare.add_argument("--project", required=True)
+    s_prepare.add_argument("--text")
+    s_prepare.add_argument("--project", default=DEFAULT_PROJECT_NAME)
 
     s_record = sub.add_parser(
         "record",
@@ -53,11 +56,11 @@ def build_parser() -> argparse.ArgumentParser:
             "(сохранение WAV в recordings/wav_22050/)"
         ),
     )
-    s_record.add_argument("--project", required=True)
+    s_record.add_argument("--project", default=DEFAULT_PROJECT_NAME)
     s_record.add_argument("--port", type=int, default=8765)
 
     s_train = sub.add_parser("train")
-    s_train.add_argument("--project", required=True)
+    s_train.add_argument("--project", default=DEFAULT_PROJECT_NAME)
     s_train.add_argument(
         "--model.vocoder_warmstart_ckpt",
         dest="vocoder_warmstart_ckpt",
@@ -93,7 +96,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     s_export = sub.add_parser("export")
-    s_export.add_argument("--project", required=True)
+    s_export.add_argument("--project", default=DEFAULT_PROJECT_NAME)
     s_export.add_argument("--ckpt")
 
     s_test = sub.add_parser("test")
@@ -104,7 +107,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_test.add_argument("--mode", choices=["text", "espeak"], default="text")
 
     s_doctor = sub.add_parser("doctor")
-    s_doctor.add_argument("--project", required=True)
+    s_doctor.add_argument("--project", default=DEFAULT_PROJECT_NAME)
     s_doctor.add_argument("--auto-fix", action="store_true")
     s_doctor.add_argument(
         "--audio-dir",
@@ -112,6 +115,28 @@ def build_parser() -> argparse.ArgumentParser:
         help="Каталог с WAV для проверки doctor (по умолчанию recordings/wav_22050)",
     )
     return p
+
+
+def _find_default_text_file(repo_root: Path) -> Path | None:
+    preferred_roots = [
+        repo_root / "data" / "input_texts",
+        repo_root / "data",
+        repo_root / "dataset",
+        repo_root,
+    ]
+    suffixes = (".txt", ".csv", ".tsv")
+    excluded_parts = {".git", ".venv", "__pycache__", "node_modules"}
+
+    for base_dir in preferred_roots:
+        if not base_dir.exists():
+            continue
+        for path in sorted(base_dir.rglob("*")):
+            if not path.is_file() or path.suffix.lower() not in suffixes:
+                continue
+            if any(part in excluded_parts for part in path.parts):
+                continue
+            return path
+    return None
 
 
 def main() -> None:
@@ -127,7 +152,15 @@ def main() -> None:
         from app.workflows import prepare_dataset
         from app.doctor import run_doctor
 
-        prepare_dataset(Path(args.text), args.project)
+        text_file = Path(args.text) if args.text else _find_default_text_file(REPO_ROOT)
+        if text_file is None:
+            raise FileNotFoundError(
+                "Не найден текстовый файл для подготовки датасета. "
+                "Добавьте .txt/.csv/.tsv в data/input_texts и запустите prepare снова."
+            )
+
+        logging.info("Using text file for prepare: %s", text_file)
+        prepare_dataset(text_file, args.project)
         code = run_doctor(
             Path("data/projects") / args.project, auto_fix=False, require_audio=False
         )

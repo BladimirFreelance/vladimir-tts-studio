@@ -579,7 +579,7 @@ def main() -> int:
     print_system_hints()
 
     print("\nГотово. Рекомендуется проверить окружение:")
-    print(format_install_command_for_help("scripts/06_doctor.py", "--project", "PROJECT_NAME", "--auto-fix"))
+    print(format_install_command_for_help("scripts/06_doctor.py", "--auto-fix"))
     if not install_training:
         print(
             "[i] Для обучения Piper при необходимости: "

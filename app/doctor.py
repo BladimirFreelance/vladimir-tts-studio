@@ -99,7 +99,7 @@ def check_manifest(
     except FileNotFoundError:
         if "<" in project_dir.name or ">" in project_dir.name:
             LOGGER.error(
-                "Project name looks like a placeholder: %s. Use a real project name instead of PROJECT_NAME.",
+                "Project name looks like a placeholder: %s. Use repository project name or pass --project explicitly.",
                 project_dir.name,
             )
         LOGGER.error("Manifest not found: %s", manifest)
@@ -244,7 +244,7 @@ def build_training_preflight_report(
     if stats.get("error") == "manifest_missing":
         blocking.append("Не найден metadata/train.csv для проекта.")
         remediation.append(
-            "python scripts/01_prepare_dataset.py --text PATH_TO_TXT --project PROJECT_NAME"
+            f"python scripts/01_prepare_dataset.py --project {project_dir.name}"
         )
     elif stats.get("error") == "manifest_invalid":
         blocking.append("Формат metadata/train.csv некорректен.")
@@ -341,7 +341,8 @@ def run_doctor(
     if require_audio and stats["ok"] == 0:
         if stats.get("error") == "manifest_missing":
             LOGGER.error(
-                "No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --text PATH_TO_TXT --project PROJECT_NAME"
+                "No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --project %s",
+                project_dir.name,
             )
         elif stats.get("error") == "manifest_invalid":
             LOGGER.error(
