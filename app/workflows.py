@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 from dataset.audio_tools import convert_wav, inspect_wav
@@ -44,6 +45,41 @@ def _resample_existing_audio(
             source.unlink(missing_ok=True)
 
 
+def _extract_text_entries(text_file: Path) -> list[str]:
+    suffix = text_file.suffix.lower()
+    if suffix not in {".csv", ".tsv"}:
+        return [text_file.read_text(encoding="utf-8")]
+
+    delimiter = "\t" if suffix == ".tsv" else ","
+    entries: list[str] = []
+    with text_file.open("r", encoding="utf-8", newline="") as csv_file:
+        reader = csv.reader(csv_file, delimiter=delimiter)
+        for row in reader:
+            if not row:
+                continue
+            clean_cells = [cell.strip() for cell in row]
+            if not any(clean_cells):
+                continue
+
+            if clean_cells[0].lower() in {
+                "audio",
+                "audio_path",
+                "path",
+                "text",
+                "transcript",
+                "sentence",
+            }:
+                continue
+
+            if len(clean_cells) >= 2 and clean_cells[1]:
+                entries.append(clean_cells[1])
+                continue
+
+            entries.append(clean_cells[0])
+
+    return entries
+
+
 def prepare_dataset(text_file: Path, project: str) -> None:
     text_file = text_file.expanduser()
     if not text_file.exists() or not text_file.is_file():
@@ -58,16 +94,21 @@ def prepare_dataset(text_file: Path, project: str) -> None:
     (project_dir / "metadata").mkdir(parents=True, exist_ok=True)
     (project_dir / "recordings" / "wav_22050").mkdir(parents=True, exist_ok=True)
 
-    raw = text_file.read_text(encoding="utf-8")
-    cleaned = normalize_text(
-        raw,
-        replacements=cfg["text"]["replacements"],
-        expand_abbreviations=cfg["text"].get("expand_common_abbreviations", True),
-    )
-    segments = split_to_segments(
-        cleaned, cfg["text"]["split_regex"], cfg["text"]["max_chars"]
-    )
-    indexed = indexed_segments(segments, prefix=project)
+    raw_entries = _extract_text_entries(text_file)
+    all_segments: list[str] = []
+    for raw in raw_entries:
+        cleaned = normalize_text(
+            raw,
+            replacements=cfg["text"]["replacements"],
+            expand_abbreviations=cfg["text"].get("expand_common_abbreviations", True),
+        )
+        all_segments.extend(
+            split_to_segments(
+                cleaned, cfg["text"]["split_regex"], cfg["text"]["max_chars"]
+            )
+        )
+
+    indexed = indexed_segments(all_segments, prefix=project)
 
     prompts_path = project_dir / "prompts" / "segments.txt"
     prompts_path.write_text(
@@ -83,5 +124,5 @@ def prepare_dataset(text_file: Path, project: str) -> None:
         project_dir, [audio_id for audio_id, _text in indexed], sample_rate=22050
     )
 
-    manifest_rows = [(f"{audio_id}.wav", text) for audio_id, text in indexed]
+    manifest_rows = [(Path(audio_id).name + ".wav", text) for audio_id, text in indexed]
     write_manifest(project_dir / "metadata" / "train.csv", manifest_rows)

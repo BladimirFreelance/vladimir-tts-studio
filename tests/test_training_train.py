@@ -279,3 +279,36 @@ def test_detect_supported_gpu_or_raise_respects_env(monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "1")
     env_patch = train_module.detect_supported_gpu_or_raise()
     assert env_patch == {}
+
+
+def test_run_training_writes_audio_dir_and_detected_sample_rate(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    custom_audio_dir = project_dir / "audio_alt"
+    custom_audio_dir.mkdir()
+    (custom_audio_dir / "001.wav").write_bytes(b"RIFF")
+
+    captured_json: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
+    )
+    monkeypatch.setattr("training.train.subprocess.run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "dataset.audio_tools.inspect_wav",
+        lambda _path: types.SimpleNamespace(sample_rate=16000),
+    )
+    monkeypatch.setattr(
+        "training.train.write_json",
+        lambda _path, payload: captured_json.setdefault("payload", payload),
+    )
+
+    run_training(project_dir, epochs=1, audio_dir=custom_audio_dir)
+
+    payload = captured_json["payload"]
+    assert payload["audio_dir"] == str(custom_audio_dir)
+    assert payload["sample_rate"] == 16000

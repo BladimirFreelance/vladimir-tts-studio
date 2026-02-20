@@ -128,7 +128,7 @@ def test_run_doctor_auto_fix_training_invokes_setup(monkeypatch, tmp_path: Path)
     monkeypatch.setattr("app.doctor.subprocess.run", fake_run)
     monkeypatch.setattr(
         "app.doctor.check_manifest",
-        lambda _project_dir, auto_fix=False: {
+        lambda _project_dir, auto_fix=False, audio_dir=None: {
             "rows": 0,
             "ok": 1,
             "missing": 0,
@@ -145,6 +145,20 @@ def test_run_doctor_auto_fix_training_invokes_setup(monkeypatch, tmp_path: Path)
 
     assert captured["cmd"][1:] == [
         "scripts/00_setup_env.py",
-        "--no-venv",
         "--require-piper-training",
     ]
+
+
+def test_check_manifest_uses_custom_audio_dir(tmp_path: Path) -> None:
+    project_dir = tmp_path / "demo"
+    manifest_path = project_dir / "metadata" / "train.csv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text("001.wav|ok\n", encoding="utf-8")
+
+    audio_dir = project_dir / "recordings" / "wav_16000"
+    _write_wav(audio_dir / "001.wav", sample_rate=16000)
+
+    stats = check_manifest(project_dir, audio_dir=audio_dir)
+
+    assert stats["ok"] == 1
+    assert stats["missing"] == 0

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from dataset.manifest import read_manifest, write_manifest
+from dataset.manifest import read_manifest, resolve_audio_path, write_manifest
 
 
 def test_write_and_read_manifest_roundtrip(tmp_path: Path) -> None:
@@ -35,3 +35,12 @@ def test_read_manifest_rejects_header_row(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="must not contain CSV header"):
         read_manifest(manifest)
+
+
+def test_resolve_audio_path_supports_custom_audio_dir(tmp_path: Path) -> None:
+    project_dir = tmp_path / "project"
+    custom_audio_dir = project_dir / "recordings" / "wav_16000"
+
+    resolved = resolve_audio_path(project_dir, "001.wav", audio_dir=custom_audio_dir)
+
+    assert resolved == custom_audio_dir / "001.wav"
