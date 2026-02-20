@@ -58,8 +58,8 @@ python scripts/06_doctor.py --project ddn_vladimir --auto-fix
 ```
 
 `doctor` проверяет:
-- `piper.espeakbridge`;
 - `piper.train`;
+- `piper.espeakbridge` (опционально, для runtime-сценариев);
 - `espeak-ng`;
 - `torch`/GPU;
 - manifest и наличие WAV;
@@ -86,7 +86,7 @@ python scripts/06_doctor.py --project ddn_vladimir --auto-fix
    python -m app.main record --project ddn_vladimir --port 8765
    ```
 
-Если `doctor` сообщает про отсутствие `piper.espeakbridge`, переустановите Piper-пакет в `.venv`:
+Если нужен runtime-модуль `piper.espeakbridge`, переустановите Piper-пакет в `.venv`:
 
 ```bash
 ./.venv/Scripts/python.exe -m pip install -e "./third_party/piper1-gpl[train]"
