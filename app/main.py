@@ -10,28 +10,30 @@ if __package__ in (None, ""):
     # пакетом `app`, установленным в окружении.
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+def _is_path_inside(child: Path, parent: Path) -> bool:
+    try:
+        child.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
 
 
-def ensure_project_venv_for_critical_commands(cmd: str) -> None:
+def ensure_project_venv() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     project_venv = repo_root / ".venv"
     if not project_venv.exists():
         return
 
     current_python = Path(sys.executable).resolve()
-    in_project_venv = project_venv.resolve() in current_python.parents
+    in_project_venv = _is_path_inside(current_python, project_venv)
     if in_project_venv:
         return
 
-    if cmd not in {"train", "doctor", "prepare", "record", "export", "test"}:
-        return
-
     print(
-        "[WARN] Вы сейчас запускаете проект не из .venv. "
+        "[ERROR] Вы сейчас запускаете проект не из .venv. "
         f"Текущий интерпретатор: {current_python}\n"
         f"Ожидаемое окружение: {project_venv.resolve()}\n"
-        "Активируйте .\\.venv\\Scripts\\Activate.ps1\n"
-        "или выполните: . .\\scripts\\00_bootstrap.ps1"
+        "Выполните: . .\\scripts\\00_bootstrap.ps1"
     )
     raise SystemExit(1)
 
@@ -108,7 +110,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
-    ensure_project_venv_for_critical_commands(args.cmd)
+    ensure_project_venv()
 
     from utils import setup_logging
 
