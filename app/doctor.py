@@ -210,7 +210,6 @@ def run_doctor(
         cmd = [
             sys.executable,
             "scripts/00_setup_env.py",
-            "--no-venv",
             "--require-piper-training",
         ]
         completed = subprocess.run(cmd, check=False)

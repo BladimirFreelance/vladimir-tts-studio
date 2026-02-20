@@ -13,9 +13,6 @@ if __package__ in (None, ""):
 
 
 def ensure_project_venv_for_critical_commands(cmd: str) -> None:
-    if cmd not in {"train", "doctor"}:
-        return
-
     repo_root = Path(__file__).resolve().parent.parent
     project_venv = repo_root / ".venv"
     if not project_venv.exists():
@@ -26,8 +23,13 @@ def ensure_project_venv_for_critical_commands(cmd: str) -> None:
     if in_project_venv:
         return
 
+    if cmd not in {"train", "doctor", "prepare", "record", "export", "test"}:
+        return
+
     print(
-        "Вы сейчас запускаете проект не из .venv. "
+        "[WARN] Вы сейчас запускаете проект не из .venv. "
+        f"Текущий интерпретатор: {current_python}\n"
+        f"Ожидаемое окружение: {project_venv.resolve()}\n"
         "Активируйте .\\.venv\\Scripts\\Activate.ps1\n"
         "или выполните: . .\\scripts\\00_bootstrap.ps1"
     )

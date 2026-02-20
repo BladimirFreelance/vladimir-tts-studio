@@ -36,13 +36,6 @@ def run_capture(cmd: list[str]) -> str | None:
 
 
 def resolve_pip(venv_dir: Path) -> list[str]:
-    """
-    Возвращает команду для pip, привязанного к указанному venv.
-
-    На Windows вызов `pip.exe` из одного окружения, когда активировано другое,
-    может падать с ошибкой вида "To modify pip, please run ... python -m pip".
-    Поэтому приоритетно вызываем pip через python интерпретатор самого venv.
-    """
     if os.name == "nt":
         venv_python = venv_dir / "Scripts" / "python.exe"
     else:
@@ -51,8 +44,7 @@ def resolve_pip(venv_dir: Path) -> list[str]:
     if venv_python.exists():
         return [str(venv_python), "-m", "pip"]
 
-    # fallback, если структура venv неожиданная
-    return [sys.executable, "-m", "pip"]
+    raise FileNotFoundError(f"Не найден python внутри venv: {venv_dir}")
 
 
 def resolve_python(venv_dir: Path) -> list[str]:
@@ -64,7 +56,7 @@ def resolve_python(venv_dir: Path) -> list[str]:
     if venv_python.exists():
         return [str(venv_python)]
 
-    return [sys.executable]
+    raise FileNotFoundError(f"Не найден python внутри venv: {venv_dir}")
 
 
 def ensure_venv(venv_dir: Path) -> list[str]:
@@ -152,7 +144,6 @@ def install_torch(pip_cmd: list[str], mode: str) -> None:
         run(pip_cmd + ["install", "torch-directml"])
         return
 
-    # auto
     install_torch_auto(pip_cmd)
 
 
@@ -162,11 +153,7 @@ def install_torch_auto(pip_cmd: list[str]) -> None:
 
     if torch_mode == "cu124":
         attempts.extend(["cu121", "cpu"])
-    elif torch_mode == "cu121":
-        attempts.append("cpu")
-    elif torch_mode == "rocm":
-        attempts.append("cpu")
-    elif torch_mode == "directml":
+    elif torch_mode in {"cu121", "rocm", "directml"}:
         attempts.append("cpu")
     else:
         attempts.append("cpu")
@@ -187,9 +174,7 @@ def install_torch_auto(pip_cmd: list[str]) -> None:
         except subprocess.CalledProcessError:
             print(f"[auto] Режим '{candidate}' не установился.")
 
-    raise subprocess.CalledProcessError(
-        returncode=1, cmd=[*pip_cmd, "install", "torch"]
-    )
+    raise subprocess.CalledProcessError(returncode=1, cmd=[*pip_cmd, "install", "torch"])
 
 
 def detect_nvidia_cuda_version() -> tuple[int, int] | None:
@@ -274,9 +259,18 @@ def print_torch_summary(python_cmd: list[str]) -> None:
 
 
 def module_available(python_cmd: list[str], module_name: str) -> bool:
-    script = f"import importlib.util,sys;sys.exit(0 if importlib.util.find_spec('{module_name}') else 1)"
-    completed = subprocess.run(python_cmd + ["-c", script], check=False)
+    probe = (
+        "import importlib.util,sys;"
+        f"sys.exit(0 if importlib.util.find_spec('{module_name}') else 1)"
+    )
+    completed = subprocess.run(python_cmd + ["-c", probe], check=False)
     return completed.returncode == 0
+
+
+def check_piper_modules(python_cmd: list[str]) -> tuple[bool, bool]:
+    has_base = module_available(python_cmd, "piper")
+    has_training = module_available(python_cmd, "piper.train.vits")
+    return has_base, has_training
 
 
 def clone_or_update_piper_training_repo(target_dir: Path) -> None:
@@ -292,29 +286,20 @@ def clone_or_update_piper_training_repo(target_dir: Path) -> None:
 
 
 def verify_piper_training_install(python_cmd: list[str]) -> bool:
-    probe = (
-        "from pathlib import Path;"
-        "import piper;"
-        "train_path = Path('third_party/piper1-gpl/src/piper').resolve();"
-        "piper.__path__.append(str(train_path)) if str(train_path) not in piper.__path__ else None;"
-        "import piper.train.vits as v;"
-        "print('OK', v.__file__)"
-    )
-    completed = run_result(python_cmd + ["-c", probe])
-    if completed.returncode != 0:
-        if completed.stderr:
-            print(completed.stderr)
+    has_base, has_training = check_piper_modules(python_cmd)
+    if not has_base:
+        print("[FAIL] Базовый модуль `piper` не найден.")
+        print("[HINT] Выполните: .\\.venv\\Scripts\\python.exe -m pip install -e .\\third_party\\piper1-gpl[train]")
         return False
-    print(completed.stdout.strip())
+    if not has_training:
+        print("[FAIL] Training-модуль `piper.train.vits` не найден.")
+        print("[HINT] Выполните: .\\.venv\\Scripts\\python.exe -m pip install -e .\\third_party\\piper1-gpl[train]")
+        return False
+    print("[OK] Piper training available: piper.train.vits")
     return True
 
 
-def install_piper_training(
-    python_cmd: list[str],
-    repo_root: Path,
-    *,
-    allow_missing: bool = False,
-) -> bool:
+def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root: Path, *, allow_missing: bool = False) -> bool:
     print("[i] Подготавливаю Piper training-модули...")
     repo_dir = repo_root / "third_party" / "piper1-gpl"
 
@@ -327,54 +312,46 @@ def install_piper_training(
             return False
         raise RuntimeError("Не удалось клонировать/обновить third_party/piper1-gpl") from error
 
+    run(pip_cmd + ["install", "-e", f"{repo_dir}[train]"])
+
     if verify_piper_training_install(python_cmd):
-        print("[OK] Piper training available: piper.train.vits")
         return True
 
     msg = "Не удалось подготовить Piper training-модули (требуется piper.train.vits)."
     if allow_missing:
         print(f"[WARN] {msg}")
-        print(
-            "[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет."
-        )
-        print(
-            "[!] Для строгой проверки запустите: python scripts/00_setup_env.py --require-piper-training"
-        )
+        print("[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет.")
+        print("[!] Для строгой проверки запустите: python scripts/00_setup_env.py --require-piper-training")
         return False
 
-    raise RuntimeError(f"""[FAIL] Piper training missing
+    raise RuntimeError(
+        f"""[FAIL] Piper training missing
 {msg}
 Команды ручного восстановления:
 git clone {PIPER_GPL_REPO} third_party/piper1-gpl
-{shlex.join(python_cmd)} -c \"import piper; from pathlib import Path; p=Path('third_party/piper1-gpl/src/piper').resolve(); piper.__path__.append(str(p)); import piper.train.vits as v; print('OK', v.__file__)\"""")
+.\\.venv\\Scripts\\python.exe -m pip install -e .\\third_party\\piper1-gpl[train]"""
+    )
 
 
 def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str], repo_root: Path) -> None:
-    print("[i] Устанавливаю Piper runtime/espeakbridge из third_party/piper1-gpl[train]...")
+    print("[i] Устанавливаю Piper runtime из third_party/piper1-gpl[train]...")
     repo_dir = repo_root / "third_party" / "piper1-gpl"
     clone_or_update_piper_training_repo(repo_dir)
     run(pip_cmd + ["uninstall", "-y", "piper-tts"])
     run(pip_cmd + ["install", "-e", f"{repo_dir}[train]"])
-    if not module_available(python_cmd, "piper.espeakbridge"):
-        print(
-            "[WARN] piper.espeakbridge не найден после установки runtime. "
-            "Для training это не критично, но может быть нужен для некоторых runtime-сценариев."
-        )
+
+    has_base, _ = check_piper_modules(python_cmd)
+    if not has_base:
+        raise RuntimeError("[FAIL] Базовый модуль piper не найден после установки third_party/piper1-gpl[train].")
 
 
 def print_system_hints() -> None:
     if shutil.which("ffmpeg") is None:
-        print(
-            "\n[!] ffmpeg не найден в PATH. Для авто-исправления аудио doctor-ом установите ffmpeg."
-        )
+        print("\n[!] ffmpeg не найден в PATH. Для авто-исправления аудио doctor-ом установите ffmpeg.")
     if shutil.which("espeak-ng") is None:
-        print(
-            "[!] espeak-ng не найден в PATH. Для piper/espeakbridge установите espeak-ng."
-        )
+        print("[!] espeak-ng не найден в PATH. Для piper/espeakbridge установите espeak-ng.")
     if os.name == "nt":
-        print(
-            "[i] Для обучения на Windows без WSL рекомендуется установить свежий драйвер GPU (NVIDIA/AMD/Intel)."
-        )
+        print("[i] Для обучения на Windows без WSL рекомендуется установить свежий драйвер GPU (NVIDIA/AMD/Intel).")
 
 
 def parse_args() -> argparse.Namespace:
@@ -384,12 +361,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--venv",
         default=".venv",
-        help="Папка виртуального окружения (по умолчанию .venv)",
-    )
-    parser.add_argument(
-        "--no-venv",
-        action="store_true",
-        help="Не создавать venv, ставить зависимости в текущее окружение",
+        help="Устаревший аргумент. Всегда используется .venv",
     )
     parser.add_argument(
         "--torch",
@@ -416,7 +388,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--piper-training-source",
         default="third_party/piper1-gpl",
-        help="Устаревший аргумент (игнорируется, training берётся из third_party/piper1-gpl через bootstrap)",
+        help="Устаревший аргумент (игнорируется, всегда используется third_party/piper1-gpl)",
     )
     parser.add_argument(
         "--require-piper-training",
@@ -438,20 +410,19 @@ def main() -> int:
     repo_root = Path(__file__).resolve().parent.parent
     os.chdir(repo_root)
 
-    if args.no_venv:
-        pip_cmd = [sys.executable, "-m", "pip"]
-        python_cmd = [sys.executable]
-        print("Использую текущее окружение Python")
-    else:
-        venv_dir = Path(args.venv)
-        pip_cmd = ensure_venv(venv_dir)
-        python_cmd = resolve_python(venv_dir)
-        active_venv = os.environ.get("VIRTUAL_ENV")
-        if active_venv and Path(active_venv).resolve() != venv_dir.resolve():
-            print(
-                f"[WARN] Активировано другое окружение: {active_venv}. "
-                f"Установка будет выполняться в {venv_dir.resolve()}"
-            )
+    if args.venv != ".venv":
+        print(f"[WARN] Аргумент --venv={args.venv} игнорируется. Установка всегда выполняется в .venv")
+
+    venv_dir = Path(".venv")
+    pip_cmd = ensure_venv(venv_dir)
+    python_cmd = resolve_python(venv_dir)
+
+    active_venv = os.environ.get("VIRTUAL_ENV")
+    if active_venv and Path(active_venv).resolve() != venv_dir.resolve():
+        print(
+            f"[WARN] Активировано другое окружение: {active_venv}. "
+            f"Установка будет выполняться в {venv_dir.resolve()}"
+        )
 
     run(pip_cmd + ["install", "--upgrade", "pip", "setuptools", "wheel"])
     run(pip_cmd + ["install", "-r", "requirements.txt"])
@@ -467,11 +438,7 @@ def main() -> int:
     install_training = args.with_piper_training or not args.without_piper_training
     if install_training:
         try:
-            install_piper_training(
-                python_cmd,
-                repo_root,
-                allow_missing=not args.require_piper_training,
-            )
+            install_piper_training(pip_cmd, python_cmd, repo_root, allow_missing=not args.require_piper_training)
         except RuntimeError as error:
             print(error)
             return 1
@@ -492,12 +459,8 @@ def main() -> int:
     print("\nГотово. Рекомендуется проверить окружение:")
     print("python scripts/06_doctor.py --project PROJECT_NAME --auto-fix")
     if not install_training:
-        print(
-            "[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py --with-piper-training"
-        )
-    print(
-        "[i] Проверка training после установки: python -m training.piper_train_bootstrap --help"
-    )
+        print("[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py --with-piper-training")
+    print("[i] Проверка training после установки: python -m training.piper_train_bootstrap --help")
     return 0
 
 
