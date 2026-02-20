@@ -356,8 +356,9 @@ def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str], repo_root: 
     run(pip_cmd + ["uninstall", "-y", "piper-tts"])
     run(pip_cmd + ["install", "-e", f"{repo_dir}[train]"])
     if not module_available(python_cmd, "piper.espeakbridge"):
-        raise RuntimeError(
-            "Piper runtime установлен некорректно: модуль piper.espeakbridge не найден"
+        print(
+            "[WARN] piper.espeakbridge не найден после установки runtime. "
+            "Для training это не критично, но может быть нужен для некоторых runtime-сценариев."
         )
 
 
@@ -445,6 +446,12 @@ def main() -> int:
         venv_dir = Path(args.venv)
         pip_cmd = ensure_venv(venv_dir)
         python_cmd = resolve_python(venv_dir)
+        active_venv = os.environ.get("VIRTUAL_ENV")
+        if active_venv and Path(active_venv).resolve() != venv_dir.resolve():
+            print(
+                f"[WARN] Активировано другое окружение: {active_venv}. "
+                f"Установка будет выполняться в {venv_dir.resolve()}"
+            )
 
     run(pip_cmd + ["install", "--upgrade", "pip", "setuptools", "wheel"])
     run(pip_cmd + ["install", "-r", "requirements.txt"])

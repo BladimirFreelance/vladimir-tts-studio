@@ -19,7 +19,9 @@ def check_imports() -> list[str]:
     try:
         importlib.import_module("piper.espeakbridge")
     except Exception:
-        issues.append("ImportError: piper.espeakbridge (fix: pip install piper-tts)")
+        LOGGER.info(
+            "piper.espeakbridge not found: это не блокирует обучение, но может быть нужен для runtime-фонемизации"
+        )
 
     if importlib.util.find_spec("piper.train") is None:
         issues.append(

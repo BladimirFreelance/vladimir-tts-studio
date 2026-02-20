@@ -32,7 +32,6 @@ function Find-WorkingPython {
     $pyCmd = Get-Command py -ErrorAction SilentlyContinue
     if ($pyCmd) {
         foreach ($candidate in @('-3.12', '-3.11', '-3')) {
-codex/run-setup-script-in-powershell-epucpy
             $version = Test-PythonCommand -PythonCommand @('py', $candidate)
             if ($version) {
                 return @{ Command = @('py', $candidate); Version = $version }
@@ -84,15 +83,6 @@ function Resolve-Python {
     }
 
     throw "Не найден рабочий Python (>=3.11). Установите Python 3.12 с https://www.python.org/downloads/windows/ (включите Add python.exe to PATH), либо установите через winget: winget install -e --id Python.Python.3.12"
-            $probe = & py $candidate -c "import sys; print('.'.join(map(str, sys.version_info[:3])))" 2>$null
-            if ($LASTEXITCODE -eq 0 -and $probe) {
-                return @('py', $candidate)
-            }
-        }
-    }
-
-    throw "Не найден рабочий Python (>=3.11). Установите Python 3.11/3.12 и добавьте его в PATH (или установите py launcher)."
-main
 }
 
 function Invoke-WithPython {

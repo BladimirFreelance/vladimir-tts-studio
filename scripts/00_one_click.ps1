@@ -87,7 +87,7 @@ git -C $piperDir fetch --all --tags
 git -C $piperDir checkout $piperRef
 
 & $venvPython -m pip uninstall -y piper-tts
-$piperEditableSpec = "$piperDir[train]"
+$piperEditableSpec = "${piperDir}[train]"
 & $venvPython -m pip install -e $piperEditableSpec
 
 & $venvPython -c "import importlib.util as u; assert u.find_spec('piper.train.vits') is not None"
