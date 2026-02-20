@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import platform
 import sys
 
 
@@ -22,10 +23,16 @@ def ensure_espeakbridge_import() -> bool:
         sys.modules["piper.espeakbridge"] = module
         return True
     except Exception as exc:
+        windows_hint = (
+            " На Windows установите training-зависимости через "
+            "`python scripts/00_setup_env.py --require-piper-training`."
+            if platform.system().lower() == "windows"
+            else ""
+        )
         print(
             "[WARN] Не удалось импортировать piper.espeakbridge. "
             "Продолжаю без жёсткой проверки (doctor/training подскажут, если это критично). "
-            f"Детали: {exc}",
+            f"Детали: {exc}.{windows_hint}",
             file=sys.stderr,
         )
         return False

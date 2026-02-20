@@ -50,7 +50,4 @@ def test_ensure_espeakbridge_import_raises_runtime_error_when_unavailable(
 
     monkeypatch.setattr("training.utils.importlib.import_module", fake_import)
 
-    with pytest.raises(
-        RuntimeError, match="Не удалось импортировать piper.espeakbridge"
-    ):
-        ensure_espeakbridge_import()
+    assert ensure_espeakbridge_import() is False

@@ -211,6 +211,74 @@ def check_manifest(
     }
 
 
+
+
+
+def build_training_preflight_report(
+    project_dir: Path, *, audio_dir: Path | None = None
+) -> tuple[list[str], list[str]]:
+    """Return (blocking_issues, remediation_steps) for training startup."""
+    issues = check_imports()
+    stats = check_manifest(project_dir, auto_fix=False, audio_dir=audio_dir)
+
+    blocking: list[str] = []
+    remediation: list[str] = []
+
+    if any("Piper training module not found" in issue for issue in issues):
+        blocking.append("Не найден Piper training модуль (piper.train.vits).")
+        remediation.append("python scripts/00_setup_env.py --require-piper-training")
+
+    if any("PyTorch not importable" in issue for issue in issues):
+        blocking.append("PyTorch не импортируется: обучение недоступно.")
+        remediation.append("python scripts/00_setup_env.py --torch auto")
+
+    if stats.get("error") == "manifest_missing":
+        blocking.append("Не найден metadata/train.csv для проекта.")
+        remediation.append(
+            "python scripts/01_prepare_dataset.py --text PATH_TO_TXT --project PROJECT_NAME"
+        )
+    elif stats.get("error") == "manifest_invalid":
+        blocking.append("Формат metadata/train.csv некорректен.")
+        remediation.append("Исправьте metadata/train.csv и запустите doctor ещё раз.")
+
+    if int(stats.get("ok", 0)) == 0:
+        blocking.append("Нет готовых записей для обучения (0 utterances).")
+        remediation.append(
+            f"python scripts/06_doctor.py --project {project_dir.name} --auto-fix"
+        )
+
+    if int(stats.get("missing", 0)) > 0:
+        blocking.append(
+            f"В manifest есть отсутствующие WAV: {stats.get('missing', 0)} шт."
+        )
+        remediation.append("Проверьте записи и заново запустите doctor с --auto-fix.")
+
+    if any("espeak-ng not found" in issue for issue in issues):
+        remediation.append("Установите espeak-ng и добавьте его в PATH.")
+
+    return blocking, remediation
+
+
+def assert_training_preflight(
+    project_dir: Path, *, audio_dir: Path | None = None
+) -> None:
+    """Raise RuntimeError with actionable hints if training preflight fails."""
+    blocking, remediation = build_training_preflight_report(
+        project_dir, audio_dir=audio_dir
+    )
+    if not blocking:
+        return
+
+    details = "\n".join(f"- {item}" for item in blocking)
+    fixes = "\n".join(f"  * {step}" for step in dict.fromkeys(remediation))
+    raise RuntimeError(
+        "Training preflight failed before launch:\n"
+        f"{details}\n"
+        "Как починить:\n"
+        f"{fixes}"
+    )
+
+
 def run_doctor(
     project_dir: Path,
     auto_fix: bool = False,

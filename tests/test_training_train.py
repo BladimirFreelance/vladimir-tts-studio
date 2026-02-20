@@ -22,7 +22,11 @@ def _prepare_project(tmp_path: Path) -> Path:
 
 
 def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("training.train.ensure_espeakbridge_import", lambda: None)
+    monkeypatch.setitem(
+        sys.modules,
+        "app.doctor",
+        types.SimpleNamespace(assert_training_preflight=lambda *_args, **_kwargs: None),
+    )
     monkeypatch.setattr("training.train.detect_supported_gpu_or_raise", lambda **_kwargs: {})
     monkeypatch.setattr(
         "training.train.load_yaml",
@@ -55,10 +59,6 @@ def test_run_training_uses_bootstrap_module_by_default(
         captured["cmd"] = cmd
 
     monkeypatch.delenv("PIPER_TRAIN_CMD", raising=False)
-    monkeypatch.setattr(
-        "training.train.importlib.util.find_spec",
-        lambda name: object() if name == "training.piper_train_bootstrap" else None,
-    )
     monkeypatch.setattr("training.train.subprocess.run", fake_run)
 
     run_training(project_dir, epochs=1)
@@ -149,7 +149,10 @@ def test_run_training_checks_audio_in_audio_dir(
     monkeypatch.setitem(
         sys.modules,
         "app.doctor",
-        types.SimpleNamespace(check_manifest=lambda *_args, **_kwargs: {"path_fixed": 0}),
+        types.SimpleNamespace(
+            check_manifest=lambda *_args, **_kwargs: {"path_fixed": 0},
+            assert_training_preflight=lambda *_args, **_kwargs: None,
+        ),
     )
 
     with pytest.raises(RuntimeError, match="Manifest указывает на отсутствующие WAV"):
@@ -197,26 +200,6 @@ def test_run_training_passes_custom_audio_dir(
 
     index = captured["cmd"].index("--data.audio_dir")
     assert captured["cmd"][index + 1] == str(custom_audio_dir)
-
-
-def test_run_training_warns_when_espeakbridge_missing(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
-) -> None:
-    _stub_dependencies(monkeypatch)
-    project_dir = _prepare_project(tmp_path)
-    monkeypatch.setattr(
-        "training.train.ensure_espeakbridge_import",
-        lambda: (_ for _ in ()).throw(RuntimeError("no espeakbridge")),
-    )
-    monkeypatch.setattr(
-        "training.train.resolve_train_base_command",
-        lambda: ["python", "-m", "training.piper_train_bootstrap"],
-    )
-    monkeypatch.setattr("training.train.subprocess.run", lambda *_args, **_kwargs: None)
-
-    run_training(project_dir, epochs=1)
-
-    assert "no espeakbridge" in caplog.text
 
 
 def test_detect_supported_gpu_or_raise_uses_first_compatible(
