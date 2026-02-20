@@ -46,6 +46,13 @@ def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.setattr("training.train.write_json", lambda *args, **kwargs: None)
 
+    def fake_find_spec(name: str):
+        if name in {"piper.train.vits", "piper.espeakbridge"}:
+            return object()
+        return None
+
+    monkeypatch.setattr("training.train.importlib.util.find_spec", fake_find_spec)
+
 
 def test_run_training_uses_bootstrap_module_by_default(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path

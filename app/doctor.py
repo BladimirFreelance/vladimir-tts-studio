@@ -16,12 +16,21 @@ LOGGER = logging.getLogger(__name__)
 
 def check_imports() -> list[str]:
     issues: list[str] = []
-    try:
-        importlib.import_module("piper.espeakbridge")
-    except Exception:
-        LOGGER.info(
-            "piper.espeakbridge not found: это не блокирует обучение, но может быть нужен для runtime-фонемизации"
+
+    backend = "missing"
+    if importlib.util.find_spec("piper.espeakbridge") is not None:
+        backend = "piper.espeakbridge"
+    elif importlib.util.find_spec("espeakbridge") is not None:
+        backend = "espeakbridge"
+    elif importlib.util.find_spec("piper_phonemize") is not None:
+        backend = "piper_phonemize"
+
+    if backend == "missing":
+        issues.append(
+            "No phonemizer backend importable (need one of: piper.espeakbridge/espeakbridge/piper_phonemize; fix: python scripts/00_setup_env.py --require-piper-training)"
         )
+    else:
+        LOGGER.info("phonemizer backend: %s", backend)
 
     if importlib.util.find_spec("piper.train") is None:
         issues.append(
@@ -256,6 +265,9 @@ def build_training_preflight_report(
     if any("espeak-ng not found" in issue for issue in issues):
         remediation.append("Установите espeak-ng и добавьте его в PATH.")
 
+    if any("No phonemizer backend importable" in issue for issue in issues):
+        remediation.append("Повторите установку training: python scripts/00_setup_env.py --require-piper-training")
+
     return blocking, remediation
 
 
@@ -321,8 +333,8 @@ def run_doctor(
         stats["missing"],
         stats["fixed"],
         stats.get("path_fixed", 0),
-        stats.get("invalid_paths", 0),
-        stats.get("sample_rate_mismatch", 0),
+        stats["invalid_paths"],
+        stats["sample_rate_mismatch"],
         stats.get("duration_min", 0.0),
     )
 
@@ -340,4 +352,5 @@ def run_doctor(
                 "0 utterances ready for training. Record audio and run doctor again."
             )
         return 2
-    return 1 if issues else 0
+
+    return 0 if not issues else 1

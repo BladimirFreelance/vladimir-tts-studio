@@ -68,9 +68,35 @@ def _detect_phonemizer_backend(phoneme_type: str) -> str:
     if importlib.util.find_spec("espeakbridge") is not None:
         return "espeakbridge (fallback)"
 
+    if importlib.util.find_spec("piper_phonemize") is not None:
+        return "piper_phonemize"
+
     return "missing (install/repair training deps)"
 
 
+
+
+def _assert_training_runtime_preflight(phoneme_type: str) -> None:
+    piper_train_available = importlib.util.find_spec("piper.train.vits") is not None
+    phonemizer_backend = _detect_phonemizer_backend(phoneme_type)
+
+    LOGGER.info("[train] preflight python: %s", Path(sys.executable).resolve())
+    LOGGER.info("[train] preflight piper.train.vits: %s", piper_train_available)
+    LOGGER.info("[train] preflight phonemizer backend: %s", phonemizer_backend)
+
+    failures: list[str] = []
+    if not piper_train_available:
+        failures.append("- Не найден piper.train.vits")
+    if phoneme_type == "espeak" and phonemizer_backend.startswith("missing"):
+        failures.append("- Не найден backend фонемизации для phoneme_type=espeak")
+
+    if failures:
+        raise RuntimeError(
+            "Training preflight failed before subprocess launch:\n"
+            + "\n".join(failures)
+            + "\nКак починить:\n"
+            "  * python scripts/00_setup_env.py --require-piper-training"
+        )
 def _log_training_runtime_info(
     *,
     project_dir: Path,
@@ -242,6 +268,7 @@ def run_training(
     )
 
     cfg = load_yaml(config_path or Path("configs/train_default.yaml"))
+    _assert_training_runtime_preflight(str(cfg["training"]["phoneme_type"]))
     manifest = project_dir / "metadata" / "train.csv"
     rows = read_manifest(manifest)
 
