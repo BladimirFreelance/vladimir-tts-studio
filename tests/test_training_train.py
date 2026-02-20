@@ -312,3 +312,26 @@ def test_run_training_writes_audio_dir_and_detected_sample_rate(
     payload = captured_json["payload"]
     assert payload["audio_dir"] == str(custom_audio_dir)
     assert payload["sample_rate"] == 16000
+
+
+def test_run_training_allows_learning_rate_override(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    captured: dict[str, list[str]] = {}
+
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
+    )
+    monkeypatch.setattr(
+        "training.train.subprocess.run",
+        lambda cmd, **_kwargs: captured.setdefault("cmd", cmd),
+    )
+
+    run_training(project_dir, epochs=1, learning_rate=0.001)
+
+    index = captured["cmd"].index("--model.learning_rate")
+    assert captured["cmd"][index + 1] == "0.001"

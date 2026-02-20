@@ -12,13 +12,60 @@ def _run(cmd: list[str], *, env: dict[str, str] | None = None) -> None:
     subprocess.run(cmd, check=True, env=env)
 
 
-def _choose_device(force_cpu: bool, preferred_gpu_name: str | None) -> dict[str, str]:
-    from training.train import detect_supported_gpu_or_raise
+def _resolve_repo_root() -> Path:
+    return Path(__file__).resolve().parent.parent
 
-    return detect_supported_gpu_or_raise(
-        force_cpu=force_cpu,
-        preferred_gpu_name=preferred_gpu_name,
+
+def _resolve_venv_python(repo_root: Path) -> Path:
+    candidates = [
+        repo_root / ".venv" / "Scripts" / "python.exe",
+        repo_root / ".venv" / "bin" / "python",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    raise RuntimeError(
+        "Не найден Python внутри .venv. Ожидались пути: "
+        + ", ".join(str(path) for path in candidates)
     )
+
+
+def _choose_device_env(*, force_cpu: bool) -> dict[str, str]:
+    if force_cpu:
+        print("[gpu] --force_cpu включён, запускаю на CPU")
+        return {"CUDA_VISIBLE_DEVICES": ""}
+
+    try:
+        import torch
+    except ImportError:
+        print("[gpu] torch не установлен, запускаю обучение на CPU")
+        return {"CUDA_VISIBLE_DEVICES": ""}
+
+    if not torch.cuda.is_available():
+        print("[gpu] CUDA недоступна, запускаю обучение на CPU")
+        return {"CUDA_VISIBLE_DEVICES": ""}
+
+    for index in range(torch.cuda.device_count()):
+        try:
+            torch.zeros(1, device=f"cuda:{index}")
+            torch.cuda.synchronize(index)
+            name = torch.cuda.get_device_name(index)
+            if index == 0:
+                print(f"[gpu] выбран GPU #0: {name}")
+                return {}
+
+            print(
+                f"[gpu] GPU #0 пропущен, выбран GPU #{index}: {name}; "
+                f"ставлю CUDA_VISIBLE_DEVICES={index}"
+            )
+            return {"CUDA_VISIBLE_DEVICES": str(index)}
+        except RuntimeError as exc:
+            name = torch.cuda.get_device_name(index)
+            print(f"[gpu] пропуск GPU #{index} ({name}): {exc}")
+
+    print("[gpu] не найден совместимый GPU, запускаю обучение на CPU")
+    return {"CUDA_VISIBLE_DEVICES": ""}
 
 
 def _check_project_layout(project_dir: Path) -> None:
@@ -36,74 +83,50 @@ def _check_project_layout(project_dir: Path) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="One-click обучение: doctor, выбор GPU/CPU, train, опционально export/test"
+        description=(
+            "One-click обучение: doctor, выбор GPU/CPU, запуск train через .venv"
+        )
     )
     parser.add_argument("--project", required=True)
-    parser.add_argument("--epochs", type=int, default=50)
-    parser.add_argument("--batch-size", type=int, dest="batch_size")
-    parser.add_argument("--audio-dir", type=Path)
+    parser.add_argument("--max_epochs", type=int, default=50)
+    parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--lr", type=float)
     parser.add_argument("--force_cpu", action="store_true")
-    parser.add_argument("--gpu-name", dest="preferred_gpu_name")
-    parser.add_argument("--export-onnx", action="store_true")
-    parser.add_argument("--test-text")
-    parser.add_argument("--test-out", default="voices_out/test_voice.wav")
     return parser
 
 
 def main() -> None:
     args = build_parser().parse_args()
-    project_dir = Path("data/projects") / args.project
+    repo_root = _resolve_repo_root()
+    project_dir = repo_root / "data" / "projects" / args.project
     _check_project_layout(project_dir)
 
-    python = sys.executable
-    _run([python, "-m", "app.main", "doctor", "--project", args.project])
+    python = _resolve_venv_python(repo_root)
+
+    _run([str(python), "-m", "app.main", "doctor", "--project", args.project])
 
     env = os.environ.copy()
-    env.update(_choose_device(args.force_cpu, args.preferred_gpu_name))
+    env.update(_choose_device_env(force_cpu=args.force_cpu))
 
     train_cmd = [
-        python,
+        str(python),
         "-m",
         "app.main",
         "train",
         "--project",
         args.project,
         "--epochs",
-        str(args.epochs),
+        str(args.max_epochs),
     ]
+
     if args.batch_size:
         train_cmd += ["--batch-size", str(args.batch_size)]
-    if args.audio_dir:
-        train_cmd += ["--audio-dir", str(args.audio_dir)]
+    if args.lr is not None:
+        train_cmd += ["--lr", str(args.lr)]
     if args.force_cpu:
         train_cmd += ["--force_cpu"]
-    if args.preferred_gpu_name:
-        train_cmd += ["--gpu-name", args.preferred_gpu_name]
 
     _run(train_cmd, env=env)
-
-    if args.export_onnx:
-        _run([python, "-m", "app.main", "export", "--project", args.project], env=env)
-
-    if args.test_text:
-        model_path = project_dir / "export" / f"{args.project}.onnx"
-        _run(
-            [
-                python,
-                "-m",
-                "app.main",
-                "test",
-                "--model",
-                str(model_path),
-                "--text",
-                args.test_text,
-                "--out",
-                args.test_out,
-                "--mode",
-                "espeak",
-            ],
-            env=env,
-        )
 
 
 if __name__ == "__main__":

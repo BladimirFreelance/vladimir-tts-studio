@@ -66,6 +66,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_train.add_argument("--epochs", type=int, default=50)
     s_train.add_argument("--batch-size", type=int, dest="batch_size")
+    s_train.add_argument("--lr", type=float, dest="learning_rate")
     s_train.add_argument(
         "--audio-dir",
         type=Path,
@@ -144,6 +145,7 @@ def main() -> None:
             epochs=args.epochs,
             vocoder_warmstart_ckpt=args.vocoder_warmstart_ckpt,
             batch_size=args.batch_size,
+            learning_rate=args.learning_rate,
             audio_dir=args.audio_dir,
             force_cpu=args.force_cpu,
             preferred_gpu_name=args.preferred_gpu_name,
