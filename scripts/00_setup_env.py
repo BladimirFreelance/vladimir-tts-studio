@@ -323,6 +323,39 @@ def warn_if_espeakbridge_missing(python_cmd: list[str]) -> None:
     subprocess.run(python_cmd + ["-c", probe], check=False)
 
 
+def detect_phonemizer_backend(python_cmd: list[str]) -> str:
+    probe = (
+        "import importlib.util;"
+        "backend='missing';"
+        "backend='piper.espeakbridge' if importlib.util.find_spec('piper.espeakbridge') else backend;"
+        "backend='espeakbridge' if backend=='missing' and importlib.util.find_spec('espeakbridge') else backend;"
+        "backend='piper_phonemize' if backend=='missing' and importlib.util.find_spec('piper_phonemize') else backend;"
+        "print(backend)"
+    )
+    completed = run_result(python_cmd + ["-c", probe])
+    if completed.returncode != 0:
+        return "missing"
+    return (completed.stdout or "").strip() or "missing"
+
+
+def _windows_build_tools_hints() -> list[str]:
+    hints: list[str] = []
+    if os.name != "nt":
+        return hints
+
+    if shutil.which("cl") is None:
+        hints.append(
+            "- Установите Visual Studio 2022 Build Tools (C++ workload): https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+        )
+    if shutil.which("cmake") is None:
+        hints.append("- Установите CMake и добавьте в PATH: https://cmake.org/download/")
+    if shutil.which("ninja") is None:
+        hints.append("- Установите Ninja (например: pip install ninja) и добавьте в PATH")
+    if shutil.which("espeak-ng") is None:
+        hints.append("- Установите espeak-ng и добавьте в PATH: https://github.com/espeak-ng/espeak-ng/releases")
+    return hints
+
+
 def clone_or_update_piper_training_repo(target_dir: Path) -> None:
     if target_dir.exists():
         print(f"[i] Обновляю репозиторий Piper training: {target_dir}")
@@ -369,7 +402,25 @@ def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root:
     run_install_with_espeakbridge_tolerance(pip_cmd, ["install", "-e", f"{repo_dir}[train]"])
 
     if verify_piper_training_install(python_cmd):
-        return True
+        backend = detect_phonemizer_backend(python_cmd)
+        if backend != "missing":
+            print(f"[OK] Phonemizer backend available: {backend}")
+            return True
+
+        msg = (
+            "Не найден backend фонемизации для training (ожидался один из: "
+            "piper.espeakbridge / espeakbridge / piper_phonemize)."
+        )
+        print(f"[FAIL] {msg}")
+        hints = _windows_build_tools_hints()
+        if hints:
+            print("[HINT] Для Windows установите недостающие компоненты:")
+            for hint in hints:
+                print(hint)
+        if allow_missing:
+            print("[WARN] Продолжаю без рабочего training-фонемайзера.")
+            return False
+        raise RuntimeError(msg)
 
     msg = "Не удалось подготовить Piper training-модули (требуется piper.train.vits)."
     if allow_missing:
@@ -411,6 +462,12 @@ def print_system_hints() -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Автоматическая установка зависимостей проекта vladimir-piper-voice-lab"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["runtime", "training"],
+        default="training",
+        help="Режим установки зависимостей: runtime (синтез) или training (обучение)",
     )
     parser.add_argument(
         "--venv",
@@ -479,7 +536,15 @@ def main() -> int:
         )
 
     run(pip_cmd + ["install", "--upgrade", "pip", "setuptools", "wheel"])
-    run(pip_cmd + ["install", "-r", "requirements/base.txt"])
+
+    install_training = args.mode == "training"
+    if args.with_piper_training:
+        install_training = True
+    if args.without_piper_training:
+        install_training = False
+
+    requirements_path = "requirements/train.txt" if install_training else "requirements/runtime.txt"
+    run(pip_cmd + ["install", "-r", requirements_path])
     run(pip_cmd + ["install", "-e", "."])
 
     install_torch(pip_cmd, args.torch)
@@ -488,7 +553,6 @@ def main() -> int:
     if args.extras:
         run(pip_cmd + ["install", *args.extras])
 
-    install_training = args.with_piper_training or not args.without_piper_training
     if install_training:
         try:
             install_piper_training(pip_cmd, python_cmd, repo_root, allow_missing=not args.require_piper_training)
@@ -497,7 +561,6 @@ def main() -> int:
             return 1
         warn_if_espeakbridge_missing(python_cmd)
     elif not verify_piper_training_install(python_cmd):
-        run(pip_cmd + ["install", "-r", "requirements/runtime.txt"])
         install_piper_runtime(pip_cmd, python_cmd, repo_root)
         warn_if_espeakbridge_missing(python_cmd)
         if args.require_piper_training:

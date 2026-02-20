@@ -6,33 +6,32 @@ import sys
 
 
 def ensure_espeakbridge_import() -> bool:
-    """Try to make `piper.espeakbridge` importable.
-
-    Returns True on success and False on failure (with warning),
-    so callers can decide whether this is fatal for their flow.
-    """
+    """Try to make `piper.espeakbridge` importable."""
     try:
         importlib.import_module("piper.espeakbridge")
         return True
     except Exception:
         pass
 
-    # fallback: if package layout has top-level `espeakbridge`
-    try:
-        module = importlib.import_module("espeakbridge")
-        sys.modules["piper.espeakbridge"] = module
-        return True
-    except Exception as exc:
-        windows_hint = (
-            " На Windows установите training-зависимости через "
-            "`python scripts/00_setup_env.py --require-piper-training`."
-            if platform.system().lower() == "windows"
-            else ""
-        )
-        print(
-            "[WARN] Не удалось импортировать piper.espeakbridge. "
-            "Продолжаю без жёсткой проверки (doctor/training подскажут, если это критично). "
-            f"Детали: {exc}.{windows_hint}",
-            file=sys.stderr,
-        )
-        return False
+    for module_name in ("espeakbridge", "piper_phonemize"):
+        try:
+            module = importlib.import_module(module_name)
+            sys.modules["piper.espeakbridge"] = module
+            sys.modules.setdefault("espeakbridge", module)
+            return True
+        except Exception:
+            continue
+
+    windows_hint = (
+        " На Windows установите training-зависимости через "
+        "`python scripts/00_setup_env.py --require-piper-training`."
+        if platform.system().lower() == "windows"
+        else ""
+    )
+    print(
+        "[WARN] Не удалось импортировать piper.espeakbridge. "
+        "Продолжаю без жёсткой проверки (doctor/training подскажут, если это критично). "
+        f"Детали: module not found.{windows_hint}",
+        file=sys.stderr,
+    )
+    return False

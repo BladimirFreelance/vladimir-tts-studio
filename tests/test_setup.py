@@ -60,6 +60,7 @@ def test_setup_training_mode_skips_runtime_install(
         module,
         "parse_args",
         lambda: types.SimpleNamespace(
+            mode="training",
             venv=".venv",
             torch="skip",
             extras=[],

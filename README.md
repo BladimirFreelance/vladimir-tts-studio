@@ -2,34 +2,15 @@
 
 `vladimir-tts-studio` — локальный пайплайн для подготовки датасета, записи, обучения Piper, экспорта ONNX и проверки окружения на Windows.
 
-## Установка и первый запуск (Windows)
-
-### 1) Клонируйте репозиторий
+## Quick Start (Windows)
 
 ```powershell
-git clone <repo-url>
-cd vladimir-tts-studio
+git clone <repo-url> && cd vladimir-tts-studio
+. .\scripts\00_bootstrap.ps1 --mode training --require-piper-training
+python -m app.main train --project <имя> --check
 ```
 
-### 2) Запустите bootstrap-скрипт
-
-```powershell
-. .\scripts\00_bootstrap.ps1
-```
-
-### 3) Подготовьте окружение для обучения Piper
-
-```powershell
-python scripts/00_setup_env.py --require-piper-training
-```
-
-### 4) Запустите обучение
-
-```powershell
-.\scripts\run.ps1 train --project <имя>
-```
-
-> Новый рекомендуемый поток установки: `00_bootstrap.ps1` → `00_setup_env.py --require-piper-training` → `run.ps1 train --project ...`.
+> Для запуска обучения после preflight-проверки: `python -m app.main train --project <имя>`.
 
 
 ## Структура зависимостей

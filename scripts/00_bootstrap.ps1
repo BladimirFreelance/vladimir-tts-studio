@@ -8,11 +8,9 @@ $setupScript = Join-Path $repoRoot 'scripts\00_setup_env.py'
 
 $isDotSourced = $MyInvocation.InvocationName -eq '.'
 
-Write-Host '[i] Для активации в текущей PowerShell-сессии запускайте скрипт через dot-sourcing:'
-Write-Host ("    . '{0}'" -f (Join-Path $repoRoot 'scripts\00_bootstrap.ps1'))
-
 if (-not $isDotSourced) {
-    throw "[FAIL] Скрипт запущен без dot-sourcing. Запустите: . '$((Join-Path $repoRoot 'scripts\00_bootstrap.ps1'))'"
+    Write-Host 'Запусти так: . .\scripts\00_bootstrap.ps1'
+    exit 1
 }
 
 Push-Location $repoRoot
