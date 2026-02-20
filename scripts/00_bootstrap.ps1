@@ -56,3 +56,8 @@ if ($Install) {
     Write-Host '[i] Запускаю установку зависимостей с обязательной проверкой training...'
     python scripts/00_setup_env.py --require-piper-training
 }
+
+Write-Host "`nПроверка активного окружения:"
+Write-Host "1) python -c \"import sys; print(sys.executable)\""
+Write-Host "2) python -m pip --version"
+Write-Host "3) python -m app.main doctor --project <PROJECT_NAME>"

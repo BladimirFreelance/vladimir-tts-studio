@@ -31,4 +31,5 @@ python -m pip --version
 
 Write-Host "`n=== Диагностика Piper ==="
 python -c "import piper; print('piper module:', piper.__file__)"
-python -c "import piper; from pathlib import Path; p=Path('third_party/piper1-gpl/src/piper').resolve(); piper.__path__.append(str(p)) if str(p) not in piper.__path__ else None; import piper.train.vits as v; print('piper.train.vits:', v.__file__)"
+python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('piper.train.vits') else 1)"
+if ($LASTEXITCODE -eq 0) { Write-Host "piper.train.vits: OK" } else { Write-Warning "piper.train.vits не найден" }
