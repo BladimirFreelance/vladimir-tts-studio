@@ -96,6 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
     s_doctor = sub.add_parser("doctor")
     s_doctor.add_argument("--project", required=True)
     s_doctor.add_argument("--auto-fix", action="store_true")
+    s_doctor.add_argument(
+        "--audio-dir",
+        type=Path,
+        help="Каталог с WAV для проверки doctor (по умолчанию recordings/wav_22050)",
+    )
     return p
 
 
@@ -165,7 +170,11 @@ def main() -> None:
     elif args.cmd == "doctor":
         from app.doctor import run_doctor
 
-        code = run_doctor(Path("data/projects") / args.project, auto_fix=args.auto_fix)
+        code = run_doctor(
+            Path("data/projects") / args.project,
+            auto_fix=args.auto_fix,
+            audio_dir=args.audio_dir,
+        )
         raise SystemExit(code)
 
 

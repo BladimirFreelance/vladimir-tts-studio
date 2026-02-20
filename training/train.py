@@ -132,6 +132,27 @@ def detect_supported_gpu_or_raise(
     return {"CUDA_VISIBLE_DEVICES": ""}
 
 
+
+
+def _detect_sample_rate(audio_dir: Path, rows: list[tuple[str, str]], fallback: int) -> int:
+    for audio, _text in rows:
+        audio_name = Path(audio).name.strip()
+        if not audio_name:
+            continue
+
+        wav_path = audio_dir / audio_name
+        if not wav_path.exists():
+            continue
+
+        try:
+            from dataset.audio_tools import inspect_wav
+
+            return inspect_wav(wav_path).sample_rate
+        except Exception:
+            continue
+
+    return fallback
+
 def _assert_manifest_audio(audio_dir: Path, rows: list[tuple[str, str]]) -> int:
     missing: list[str] = []
     for audio, _text in rows:
@@ -187,7 +208,7 @@ def run_training(
     except RuntimeError:
         from app.doctor import check_manifest
 
-        stats = check_manifest(project_dir, auto_fix=True)
+        stats = check_manifest(project_dir, auto_fix=True, audio_dir=resolved_audio_dir)
         if stats.get("path_fixed", 0) > 0:
             LOGGER.info(
                 "doctor auto-fix обновил manifest paths: %s. Повторяю проверку.",
@@ -202,13 +223,18 @@ def run_training(
             f"Запустите scripts/06_doctor.py --project {project_dir.name} --auto-fix для диагностики."
         )
 
+    detected_sample_rate = _detect_sample_rate(
+        resolved_audio_dir, rows, int(cfg["project_defaults"]["sample_rate"])
+    )
+
     data_config = project_dir / "metadata" / "data_config.json"
     write_json(
         data_config,
         {
             "dataset": "local",
             "manifest": str(manifest),
-            "sample_rate": cfg["project_defaults"]["sample_rate"],
+            "audio_dir": str(resolved_audio_dir),
+            "sample_rate": detected_sample_rate,
             "phoneme_type": cfg["training"]["phoneme_type"],
             "espeak_voice": cfg["training"]["espeak_voice"],
         },

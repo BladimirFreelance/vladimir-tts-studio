@@ -65,3 +65,35 @@ def test_prepare_dataset_raises_clear_error_for_missing_text(monkeypatch, tmp_pa
         assert "--text" in str(exc)
     else:
         raise AssertionError("Expected FileNotFoundError for missing text file")
+
+
+def test_prepare_dataset_csv_manifest_uses_leaf_filename(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    _write_test_config(tmp_path)
+
+    source_text = tmp_path / "input.csv"
+    source_text.write_text("audio,text\nfolder/line_001.wav,Первая реплика\n", encoding="utf-8")
+
+    project = "demo_csv"
+    prepare_dataset(source_text, project)
+
+    manifest = tmp_path / "data" / "projects" / project / "metadata" / "train.csv"
+    first_audio = manifest.read_text(encoding="utf-8").strip().split("|", maxsplit=1)[0]
+    assert "/" not in first_audio
+    assert "\\" not in first_audio
+
+
+def test_prepare_dataset_tsv_manifest_uses_leaf_filename(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    _write_test_config(tmp_path)
+
+    source_text = tmp_path / "input.tsv"
+    source_text.write_text("audio\ttext\nfolder\\line_001.wav\tПервая реплика\n", encoding="utf-8")
+
+    project = "demo_tsv"
+    prepare_dataset(source_text, project)
+
+    manifest = tmp_path / "data" / "projects" / project / "metadata" / "train.csv"
+    first_audio = manifest.read_text(encoding="utf-8").strip().split("|", maxsplit=1)[0]
+    assert "/" not in first_audio
+    assert "\\" not in first_audio

@@ -75,7 +75,9 @@ def _duration_warning(total_sec: float) -> str:
     return ""
 
 
-def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int | float | str]:
+def check_manifest(
+    project_dir: Path, auto_fix: bool = False, audio_dir: Path | None = None
+) -> dict[str, int | float | str]:
     manifest = project_dir / "metadata" / "train.csv"
     try:
         rows = read_manifest(manifest)
@@ -141,7 +143,7 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
         rel_path = Path(normalized_rel)
         updated_rows.append((normalized_rel, text))
 
-        wav_path = resolve_audio_path(project_dir, normalized_rel)
+        wav_path = resolve_audio_path(project_dir, normalized_rel, audio_dir=audio_dir)
 
         try:
             wav_path.resolve().relative_to(project_root)
@@ -202,7 +204,10 @@ def check_manifest(project_dir: Path, auto_fix: bool = False) -> dict[str, int |
 
 
 def run_doctor(
-    project_dir: Path, auto_fix: bool = False, require_audio: bool = True
+    project_dir: Path,
+    auto_fix: bool = False,
+    require_audio: bool = True,
+    audio_dir: Path | None = None,
 ) -> int:
     issues = check_imports()
     if auto_fix and any("Piper training module not found" in issue for issue in issues):
@@ -227,7 +232,7 @@ def run_doctor(
     for issue in issues:
         LOGGER.warning(issue)
 
-    stats = check_manifest(project_dir, auto_fix=auto_fix)
+    stats = check_manifest(project_dir, auto_fix=auto_fix, audio_dir=audio_dir)
     LOGGER.info(
         "manifest rows=%s ok=%s missing=%s fixed=%s path_fixed=%s invalid_paths=%s sample_rate_mismatch=%s duration_min=%s",
         stats["rows"],

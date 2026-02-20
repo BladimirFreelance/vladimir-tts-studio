@@ -31,13 +31,17 @@ def read_manifest(manifest_path: Path) -> list[tuple[str, str]]:
     return rows
 
 
-def resolve_audio_path(project_dir: Path, audio_rel: str) -> Path:
+def resolve_audio_path(
+    project_dir: Path, audio_rel: str, audio_dir: Path | None = None
+) -> Path:
     normalized = Path(audio_rel.replace("\\", "/").strip())
     if normalized.is_absolute():
         return normalized
 
+    base_audio_dir = audio_dir or project_dir / "recordings" / "wav_22050"
+
     candidate = (
-        project_dir / "recordings" / "wav_22050" / normalized.name
+        base_audio_dir / normalized.name
         if len(normalized.parts) == 1
         else project_dir / normalized
     )
