@@ -14,7 +14,7 @@ cd vladimir-tts-studio
 ### 2) Запустите bootstrap-скрипт
 
 ```powershell
-.\scripts\00_bootstrap.ps1
+. .\scripts\00_bootstrap.ps1
 ```
 
 ### 3) Подготовьте окружение для обучения Piper
@@ -30,6 +30,13 @@ python scripts/00_setup_env.py --require-piper-training
 ```
 
 > Новый рекомендуемый поток установки: `00_bootstrap.ps1` → `00_setup_env.py --require-piper-training` → `run.ps1 train --project ...`.
+
+
+## Структура зависимостей
+
+- `requirements/base.txt` — базовые зависимости приложения.
+- `requirements/runtime.txt` — зависимости для runtime-синтеза (включая `piper-tts`).
+- `requirements/train.txt` — база для training-потока; training-модули Piper ставятся через `third_party/piper1-gpl[train]` в `scripts/00_setup_env.py`.
 
 ## Что сохранять перед удалением/переустановкой
 

@@ -1,0 +1,4 @@
+-r base.txt
+
+# Piper runtime only (synthesis)
+piper-tts

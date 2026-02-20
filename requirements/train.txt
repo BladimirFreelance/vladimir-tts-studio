@@ -1,0 +1,4 @@
+-r base.txt
+
+# Training stack is installed from third_party/piper1-gpl[train]
+# via scripts/00_setup_env.py to avoid runtime-vs-training conflicts.

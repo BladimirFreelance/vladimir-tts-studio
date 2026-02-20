@@ -391,13 +391,12 @@ git clone {PIPER_GPL_REPO} third_party/piper1-gpl
 
 
 def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str], repo_root: Path) -> None:
-    _ = repo_root
-    print("[i] Устанавливаю Piper runtime (piper-tts)...")
-    run_install_with_espeakbridge_tolerance(pip_cmd, ["install", "piper-tts"])
+    _ = (pip_cmd, repo_root)
+    print("[i] Проверяю Piper runtime (piper-tts)...")
 
     has_base, _ = check_piper_modules(python_cmd)
     if not has_base:
-        raise RuntimeError("[FAIL] Базовый модуль piper не найден после установки piper-tts.")
+        raise RuntimeError("[FAIL] Базовый модуль piper не найден после установки runtime-зависимостей.")
 
 
 def print_system_hints() -> None:
@@ -480,7 +479,7 @@ def main() -> int:
         )
 
     run(pip_cmd + ["install", "--upgrade", "pip", "setuptools", "wheel"])
-    run(pip_cmd + ["install", "-r", "requirements.txt"])
+    run(pip_cmd + ["install", "-r", "requirements/base.txt"])
     run(pip_cmd + ["install", "-e", "."])
 
     install_torch(pip_cmd, args.torch)
@@ -498,6 +497,7 @@ def main() -> int:
             return 1
         warn_if_espeakbridge_missing(python_cmd)
     elif not verify_piper_training_install(python_cmd):
+        run(pip_cmd + ["install", "-r", "requirements/runtime.txt"])
         install_piper_runtime(pip_cmd, python_cmd, repo_root)
         warn_if_espeakbridge_missing(python_cmd)
         if args.require_piper_training:
