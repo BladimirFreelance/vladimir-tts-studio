@@ -35,6 +35,27 @@ def run_capture(cmd: list[str]) -> str | None:
     return completed.stdout.strip()
 
 
+def detect_windows_shell() -> str:
+    if os.name != "nt":
+        return "unknown"
+    if os.environ.get("PSModulePath") or os.environ.get("POWERSHELL_DISTRIBUTION_CHANNEL"):
+        return "powershell"
+    return "cmd"
+
+
+def format_venv_python_for_help() -> str:
+    if os.name == "nt":
+        return r".\.venv\Scripts\python.exe"
+    return "./.venv/bin/python"
+
+
+def format_install_command_for_help(*args: str) -> str:
+    python_exec = format_venv_python_for_help()
+    if os.name == "nt" and detect_windows_shell() == "powershell":
+        return f"& {python_exec} {' '.join(args)}"
+    return f"{python_exec} {' '.join(args)}"
+
+
 def resolve_pip(venv_dir: Path) -> list[str]:
     if os.name == "nt":
         venv_python = venv_dir / "Scripts" / "python.exe"
@@ -45,6 +66,21 @@ def resolve_pip(venv_dir: Path) -> list[str]:
         return [str(venv_python), "-m", "pip"]
 
     raise FileNotFoundError(f"Не найден python внутри venv: {venv_dir}")
+
+
+def run_install_with_espeakbridge_tolerance(pip_cmd: list[str], install_args: list[str]) -> None:
+    cmd = pip_cmd + install_args
+    completed = run_result(cmd)
+    if completed.returncode == 0:
+        return
+
+    combined_output = f"{completed.stdout}\n{completed.stderr}".lower()
+    if "espeakbridge" in combined_output:
+        print("[WARN] Установка упала на espeakbridge. Повторяю без зависимостей (--no-deps).")
+        run(pip_cmd + install_args + ["--no-deps"])
+        return
+
+    raise subprocess.CalledProcessError(returncode=completed.returncode, cmd=cmd)
 
 
 def resolve_python(venv_dir: Path) -> list[str]:
@@ -287,13 +323,17 @@ def clone_or_update_piper_training_repo(target_dir: Path) -> None:
 
 def verify_piper_training_install(python_cmd: list[str]) -> bool:
     has_base, has_training = check_piper_modules(python_cmd)
+    install_hint = format_install_command_for_help(
+        "-m", "pip", "install", "-e", ".\\third_party\\piper1-gpl[train]"
+    )
     if not has_base:
         print("[FAIL] Базовый модуль `piper` не найден.")
-        print("[HINT] Выполните: .\\.venv\\Scripts\\python.exe -m pip install -e .\\third_party\\piper1-gpl[train]")
+        print(f"[HINT] Выполните: {install_hint}")
         return False
     if not has_training:
-        print("[FAIL] Training-модуль `piper.train.vits` не найден.")
-        print("[HINT] Выполните: .\\.venv\\Scripts\\python.exe -m pip install -e .\\third_party\\piper1-gpl[train]")
+        print("[FAIL] Не найден обязательный модуль обучения `piper.train.vits`.")
+        print("[HINT] Piper runtime установлен, но блок обучения недоступен.")
+        print(f"[HINT] Выполните: {install_hint}")
         return False
     print("[OK] Piper training available: piper.train.vits")
     return True
@@ -312,7 +352,7 @@ def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root:
             return False
         raise RuntimeError("Не удалось клонировать/обновить third_party/piper1-gpl") from error
 
-    run(pip_cmd + ["install", "-e", f"{repo_dir}[train]"])
+    run_install_with_espeakbridge_tolerance(pip_cmd, ["install", "-e", f"{repo_dir}[train]"])
 
     if verify_piper_training_install(python_cmd):
         return True
@@ -321,7 +361,10 @@ def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root:
     if allow_missing:
         print(f"[WARN] {msg}")
         print("[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет.")
-        print("[!] Для строгой проверки запустите: python scripts/00_setup_env.py --require-piper-training")
+        print(
+            "[!] Для строгой проверки запустите: "
+            + format_install_command_for_help("scripts/00_setup_env.py", "--require-piper-training")
+        )
         return False
 
     raise RuntimeError(
@@ -329,7 +372,7 @@ def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root:
 {msg}
 Команды ручного восстановления:
 git clone {PIPER_GPL_REPO} third_party/piper1-gpl
-.\\.venv\\Scripts\\python.exe -m pip install -e .\\third_party\\piper1-gpl[train]"""
+{format_install_command_for_help('-m', 'pip', 'install', '-e', '.\\third_party\\piper1-gpl[train]')}"""
     )
 
 
@@ -338,7 +381,7 @@ def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str], repo_root: 
     repo_dir = repo_root / "third_party" / "piper1-gpl"
     clone_or_update_piper_training_repo(repo_dir)
     run(pip_cmd + ["uninstall", "-y", "piper-tts"])
-    run(pip_cmd + ["install", "-e", f"{repo_dir}[train]"])
+    run_install_with_espeakbridge_tolerance(pip_cmd, ["install", "-e", f"{repo_dir}[train]"])
 
     has_base, _ = check_piper_modules(python_cmd)
     if not has_base:
@@ -450,17 +493,23 @@ def main() -> int:
 
     if args.require_piper_training and not verify_piper_training_install(python_cmd):
         print("[FAIL] Не удалось импортировать piper.train.vits после установки.")
-        print("[HINT] Запустите из активированного .venv:")
-        print("python scripts/00_setup_env.py --require-piper-training")
+        print("[HINT] Запустите:")
+        print(format_install_command_for_help("scripts/00_setup_env.py", "--require-piper-training"))
         return 1
 
     print_system_hints()
 
     print("\nГотово. Рекомендуется проверить окружение:")
-    print("python scripts/06_doctor.py --project PROJECT_NAME --auto-fix")
+    print(format_install_command_for_help("scripts/06_doctor.py", "--project", "PROJECT_NAME", "--auto-fix"))
     if not install_training:
-        print("[i] Для обучения Piper при необходимости: python scripts/00_setup_env.py --with-piper-training")
-    print("[i] Проверка training после установки: python -m training.piper_train_bootstrap --help")
+        print(
+            "[i] Для обучения Piper при необходимости: "
+            + format_install_command_for_help("scripts/00_setup_env.py", "--with-piper-training")
+        )
+    print(
+        "[i] Проверка training после установки: "
+        + format_install_command_for_help("-m", "training.piper_train_bootstrap", "--help")
+    )
     return 0
 
 
