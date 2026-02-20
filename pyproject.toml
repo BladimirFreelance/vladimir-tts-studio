@@ -12,8 +12,12 @@ dependencies = [
   "fastapi>=0.112.0",
   "uvicorn>=0.30.0",
   "python-multipart>=0.0.9",
-  "piper-tts",
   "ffmpeg-python"
+]
+
+[project.optional-dependencies]
+runtime = [
+  "piper-tts"
 ]
 
 [tool.setuptools]

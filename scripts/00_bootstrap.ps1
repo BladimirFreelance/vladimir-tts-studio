@@ -11,6 +11,10 @@ $isDotSourced = $MyInvocation.InvocationName -eq '.'
 Write-Host '[i] Для активации в текущей PowerShell-сессии запускайте скрипт через dot-sourcing:'
 Write-Host ("    . '{0}'" -f (Join-Path $repoRoot 'scripts\00_bootstrap.ps1'))
 
+if (-not $isDotSourced) {
+    throw "[FAIL] Скрипт запущен без dot-sourcing. Запустите: . '$((Join-Path $repoRoot 'scripts\00_bootstrap.ps1'))'"
+}
+
 Push-Location $repoRoot
 try {
     if (-not (Test-Path $venvDir)) {
@@ -46,10 +50,6 @@ try {
 
     if (-not (Test-Path $setupScript)) {
         throw "Не найден скрипт настройки окружения: $setupScript"
-    }
-
-    if (-not $isDotSourced) {
-        Write-Warning 'Скрипт запущен без dot-sourcing: активация не сохранится в текущей сессии.'
     }
 
     . $activateScript
