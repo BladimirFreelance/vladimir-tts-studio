@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 import types
 from pathlib import Path
 
@@ -22,7 +23,7 @@ def _prepare_project(tmp_path: Path) -> Path:
 
 def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("training.train.ensure_espeakbridge_import", lambda: None)
-    monkeypatch.setattr("training.train.detect_supported_gpu_or_raise", lambda: {})
+    monkeypatch.setattr("training.train.detect_supported_gpu_or_raise", lambda **_kwargs: {})
     monkeypatch.setattr(
         "training.train.load_yaml",
         lambda _path: {
@@ -136,7 +137,7 @@ def test_run_training_allows_batch_size_override(
     assert captured["cmd"][index + 1] == "8"
 
 
-def test_run_training_checks_audio_in_wav_22050(
+def test_run_training_checks_audio_in_audio_dir(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _stub_dependencies(monkeypatch)
@@ -145,19 +146,21 @@ def test_run_training_checks_audio_in_wav_22050(
         "training.train.read_manifest",
         lambda _manifest: [("missing.wav", "text")],
     )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.doctor",
+        types.SimpleNamespace(check_manifest=lambda *_args, **_kwargs: {"path_fixed": 0}),
+    )
 
     with pytest.raises(RuntimeError, match="Manifest указывает на отсутствующие WAV"):
         run_training(project_dir, epochs=1)
 
 
-def test_run_training_supports_manifest_subpaths(
+def test_run_training_uses_basename_from_manifest(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _stub_dependencies(monkeypatch)
     project_dir = _prepare_project(tmp_path)
-    nested = project_dir / "recordings" / "custom" / "nested"
-    nested.mkdir(parents=True)
-    (nested / "001.wav").write_bytes(b"RIFF")
     monkeypatch.setattr(
         "training.train.read_manifest",
         lambda _manifest: [("recordings/custom/nested/001.wav", "text")],
@@ -169,6 +172,31 @@ def test_run_training_supports_manifest_subpaths(
     monkeypatch.setattr("training.train.subprocess.run", lambda *_args, **_kwargs: None)
 
     run_training(project_dir, epochs=1)
+
+
+def test_run_training_passes_custom_audio_dir(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+    custom_audio_dir = project_dir / "audio_alt"
+    custom_audio_dir.mkdir()
+    (custom_audio_dir / "001.wav").write_bytes(b"RIFF")
+
+    captured: dict[str, list[str]] = {}
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
+    )
+    monkeypatch.setattr(
+        "training.train.subprocess.run",
+        lambda cmd, **_kwargs: captured.setdefault("cmd", cmd),
+    )
+
+    run_training(project_dir, epochs=1, audio_dir=custom_audio_dir)
+
+    index = captured["cmd"].index("--data.audio_dir")
+    assert captured["cmd"][index + 1] == str(custom_audio_dir)
 
 
 def test_run_training_warns_when_espeakbridge_missing(
@@ -214,6 +242,37 @@ def test_detect_supported_gpu_or_raise_uses_first_compatible(
     env_patch = train_module.detect_supported_gpu_or_raise()
 
     assert env_patch == {"CUDA_VISIBLE_DEVICES": "1"}
+
+
+def test_detect_supported_gpu_or_raise_prefers_named_gpu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(
+            is_available=lambda: True,
+            device_count=lambda: 2,
+            get_device_name=lambda idx: ["RTX 4090", "RTX 3060"][idx],
+            get_device_capability=lambda idx: [(8, 9), (8, 6)][idx],
+            synchronize=lambda _idx: None,
+        ),
+        zeros=lambda *_args, **_kwargs: 0,
+    )
+    monkeypatch.setattr(train_module, "torch", fake_torch)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    env_patch = train_module.detect_supported_gpu_or_raise(preferred_gpu_name="3060")
+
+    assert env_patch == {"CUDA_VISIBLE_DEVICES": "1"}
+
+
+def test_detect_supported_gpu_or_raise_supports_force_cpu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    env_patch = train_module.detect_supported_gpu_or_raise(force_cpu=True)
+
+    assert env_patch == {"CUDA_VISIBLE_DEVICES": ""}
 
 
 def test_detect_supported_gpu_or_raise_respects_env(monkeypatch: pytest.MonkeyPatch) -> None:
