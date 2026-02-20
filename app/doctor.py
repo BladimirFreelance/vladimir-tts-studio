@@ -41,7 +41,9 @@ def check_imports() -> list[str]:
     return issues
 
 
-def _coerce_manifest_path(project_dir: Path, audio_rel: str) -> str | None:
+def _coerce_manifest_path(
+    project_dir: Path, audio_rel: str, *, allow_salvage: bool = False
+) -> str | None:
     candidate = audio_rel.replace("\\", "/").strip()
     if not candidate:
         return None
@@ -52,10 +54,14 @@ def _coerce_manifest_path(project_dir: Path, audio_rel: str) -> str | None:
             rel = raw.resolve().relative_to(project_dir.resolve())
             candidate = rel.as_posix()
         except Exception:
+            if allow_salvage and raw.name:
+                return Path(raw.name).as_posix()
             return None
 
     normalized = Path(candidate)
     if any(part == ".." for part in normalized.parts):
+        if allow_salvage and normalized.name:
+            return Path(normalized.name).as_posix()
         return None
 
     return Path(normalized.name).as_posix()
@@ -124,7 +130,9 @@ def check_manifest(
     project_root = project_dir.resolve()
 
     for audio_rel, text in rows:
-        normalized_rel = _coerce_manifest_path(project_dir, audio_rel)
+        normalized_rel = _coerce_manifest_path(
+            project_dir, audio_rel, allow_salvage=auto_fix
+        )
         if normalized_rel is None:
             LOGGER.warning(
                 "Invalid manifest audio path (must be relative to project root): %s",
@@ -209,6 +217,11 @@ def run_doctor(
     require_audio: bool = True,
     audio_dir: Path | None = None,
 ) -> int:
+    if auto_fix:
+        base_audio_dir = audio_dir or project_dir / "recordings" / "wav_22050"
+        base_audio_dir.mkdir(parents=True, exist_ok=True)
+        (project_dir / "cache").mkdir(parents=True, exist_ok=True)
+
     issues = check_imports()
     if auto_fix and any("Piper training module not found" in issue for issue in issues):
         LOGGER.info("Trying to auto-fix Piper training installation...")
