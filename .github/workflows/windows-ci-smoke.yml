@@ -1,0 +1,54 @@
+name: Windows CI Smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Bootstrap and install dependencies
+        shell: pwsh
+        run: ./scripts/00_bootstrap.ps1 -Install
+
+      - name: Prepare dummy project data
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path "data/projects/ci-smoke/metadata" -Force | Out-Null
+          New-Item -ItemType Directory -Path "data/projects/ci-smoke/recordings/wav_22050" -Force | Out-Null
+          @"
+          001.wav|dummy sample one
+          002.wav|dummy sample two
+          "@ | Set-Content -Path "data/projects/ci-smoke/metadata/train.csv" -Encoding UTF8
+
+          .\.venv\Scripts\python.exe -c "import pathlib, struct, wave; base=pathlib.Path('data/projects/ci-smoke/recordings/wav_22050');
+for name in ['001.wav','002.wav']:
+    with wave.open(str(base / name), 'wb') as wav:
+        wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(22050); wav.writeframes(b''.join(struct.pack('<h', 0) for _ in range(2205)))"
+
+      - name: Run doctor
+        shell: pwsh
+        run: .\.venv\Scripts\python.exe scripts/06_doctor.py --project ci-smoke --auto-fix
+
+      - name: Run short training on dummy data
+        shell: pwsh
+        env:
+          PIPER_TRAIN_CMD: ".venv\\Scripts\\python.exe .github\\scripts\\fake_piper_train.py"
+        run: .\.venv\Scripts\python.exe scripts/03_train.py --project ci-smoke --epochs 1 --force_cpu
+
+      - name: Validate checkpoint exists
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "data/projects/ci-smoke/runs/ci-smoke.ckpt")) {
+            throw "Expected checkpoint was not created"
+          }
