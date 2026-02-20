@@ -67,6 +67,13 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     s_train.add_argument("--epochs", type=int, default=50)
+    s_train.add_argument(
+        "--check",
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        help="Проверить окружение/пути/данные без запуска эпох обучения",
+    )
     s_train.add_argument("--batch-size", type=int, dest="batch_size")
     s_train.add_argument("--lr", type=float, dest="learning_rate")
     s_train.add_argument(
@@ -145,6 +152,7 @@ def main() -> None:
         run_training(
             Path("data/projects") / args.project,
             epochs=args.epochs,
+            dry_run=args.dry_run,
             vocoder_warmstart_ckpt=args.vocoder_warmstart_ckpt,
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,

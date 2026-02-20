@@ -318,3 +318,21 @@ def test_run_training_allows_learning_rate_override(
 
     index = captured["cmd"].index("--model.learning_rate")
     assert captured["cmd"][index + 1] == "0.001"
+
+
+def test_run_training_dry_run_skips_subprocess(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    called = {"subprocess": False}
+
+    def _fail_if_called(*_args, **_kwargs) -> None:
+        called["subprocess"] = True
+
+    monkeypatch.setattr("training.train.subprocess.run", _fail_if_called)
+
+    run_training(project_dir, epochs=1, dry_run=True)
+
+    assert called["subprocess"] is False
