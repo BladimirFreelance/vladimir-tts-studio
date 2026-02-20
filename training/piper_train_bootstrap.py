@@ -29,7 +29,7 @@ def _attach_training_package() -> None:
 
 def main() -> None:
     _attach_training_package()
-    runpy.run_module("piper.train", run_name="__main__")
+    runpy.run_module("piper.train.__main__", run_name="__main__")
 
 
 if __name__ == "__main__":
