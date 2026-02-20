@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import argparse
+import importlib.util
 import shlex
 import subprocess
 import sys
@@ -45,6 +46,58 @@ def resolve_train_base_command() -> list[str]:
         return shlex.split(train_cmd)
 
     return [sys.executable, "-m", "training.piper_train_bootstrap"]
+
+
+def _resolve_venv_path() -> str:
+    if os.getenv("VIRTUAL_ENV"):
+        return os.environ["VIRTUAL_ENV"]
+
+    if sys.prefix != sys.base_prefix:
+        return sys.prefix
+
+    return "<system>"
+
+
+def _detect_phonemizer_backend(phoneme_type: str) -> str:
+    if phoneme_type != "espeak":
+        return f"{phoneme_type} (configured)"
+
+    if importlib.util.find_spec("piper.espeakbridge") is not None:
+        return "piper.espeakbridge"
+
+    if importlib.util.find_spec("espeakbridge") is not None:
+        return "espeakbridge (fallback)"
+
+    return "missing (install/repair training deps)"
+
+
+def _log_training_runtime_info(
+    *,
+    project_dir: Path,
+    audio_dir: Path,
+    train_cmd: list[str],
+    cfg: dict,
+    dry_run: bool,
+) -> None:
+    piper_backend = (
+        "custom command via PIPER_TRAIN_CMD"
+        if os.getenv("PIPER_TRAIN_CMD")
+        else "training.piper_train_bootstrap"
+    )
+    phoneme_type = str(cfg["training"]["phoneme_type"])
+    phonemizer_backend = _detect_phonemizer_backend(phoneme_type)
+    LOGGER.info("[train] mode: %s", "check/dry-run" if dry_run else "fit")
+    LOGGER.info("[train] project dir: %s", project_dir)
+    LOGGER.info("[train] audio dir: %s", audio_dir)
+    LOGGER.info("[train] python executable: %s", Path(sys.executable).resolve())
+    LOGGER.info("[train] python venv: %s", _resolve_venv_path())
+    LOGGER.info("[train] piper backend: %s (%s)", piper_backend, " ".join(train_cmd))
+    LOGGER.info(
+        "[train] phonemizer: %s (phoneme_type=%s, espeak_voice=%s)",
+        phonemizer_backend,
+        phoneme_type,
+        cfg["training"]["espeak_voice"],
+    )
 
 
 def detect_supported_gpu_or_raise(
@@ -167,6 +220,7 @@ def _assert_manifest_audio(audio_dir: Path, rows: list[tuple[str, str]]) -> int:
 def run_training(
     project_dir: Path,
     epochs: int,
+    dry_run: bool = False,
     vocoder_warmstart_ckpt: str | None = None,
     config_path: Path | None = None,
     batch_size: int | None = None,
@@ -258,6 +312,20 @@ def run_training(
     command_path.write_text(
         " ".join(shlex.quote(part) for part in cmd), encoding="utf-8"
     )
+
+    _log_training_runtime_info(
+        project_dir=project_dir,
+        audio_dir=resolved_audio_dir,
+        train_cmd=cmd,
+        cfg=cfg,
+        dry_run=dry_run,
+    )
+
+    if dry_run:
+        LOGGER.info(
+            "[train] Dry-run completed: окружение, пути и данные валидны. Эпохи не запускались."
+        )
+        return
 
     LOGGER.info("Launching training: %s", " ".join(cmd))
     train_env = os.environ.copy()
