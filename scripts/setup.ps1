@@ -31,5 +31,5 @@ python -m pip --version
 
 Write-Host "`n=== Диагностика Piper ==="
 python -c "import piper; print('piper module:', piper.__file__)"
-python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('piper.train.vits') else 1)"
-if ($LASTEXITCODE -eq 0) { Write-Host "piper.train.vits: OK" } else { Write-Warning "piper.train.vits не найден" }
+python -m training.piper_train_bootstrap --help | Out-Null
+if ($LASTEXITCODE -eq 0) { Write-Host "training.piper_train_bootstrap: OK" } else { Write-Warning "training bootstrap недоступен" }

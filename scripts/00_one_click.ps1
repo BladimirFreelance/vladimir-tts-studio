@@ -91,7 +91,7 @@ $piperEditableSpec = "${piperDir}[train]"
 & $venvPython -m pip install -e $piperEditableSpec
 
 & $venvPython -c "import importlib.util as u; assert u.find_spec('piper.train.vits') is not None"
-& $venvPython -m piper.train --help | Out-Null
+& $venvPython -m training.piper_train_bootstrap --help | Out-Null
 
 Ensure-Espeak
 

@@ -6,12 +6,15 @@
 
 ```powershell
 . .\scripts\00_bootstrap.ps1 --mode training --require-piper-training
-python -m app.main train --check
+python -m app.main train --check --project ddn_vladimir
 ```
 
-> Для запуска обучения после preflight-проверки: `python -m app.main train`.
+> Для запуска обучения после preflight-проверки: `python -m app.main train --project ddn_vladimir`.
 
-По умолчанию имя проекта берётся из имени репозитория (`vladimir-tts-studio`).
+Если `--project` не указан, CLI выбирает проект автоматически:
+- если в `data/projects/` ровно один каталог — используется он;
+- иначе, если есть `ddn_vladimir` — используется `ddn_vladimir`;
+- иначе используется имя репозитория (`vladimir-tts-studio`) и выводится подсказка указать `--project`.
 
 ## Автопоиск файлов
 
@@ -38,7 +41,8 @@ python -m app.main prepare --text data/input_texts/news.txt
 
 - `requirements/base.txt` — базовые зависимости приложения.
 - `requirements/runtime.txt` — зависимости для runtime-синтеза (включая `piper-tts`).
-- `requirements/train.txt` — база для training-потока; training-модули Piper ставятся через `third_party/piper1-gpl[train]` в `scripts/00_setup_env.py`.
+- `requirements/train.txt` — training-зависимости + `piper-tts` wheel.
+- `third_party/piper1-gpl` — исходники `piper.train`, подключаются через `training.piper_train_bootstrap` (без `pip install -e third_party/piper1-gpl`).
 
 ## Что сохранять перед удалением/переустановкой
 
@@ -59,6 +63,18 @@ python -m app.main prepare --text data/input_texts/news.txt
 - временные файлы/кэш внутри репозитория
 
 После восстановления репозитория просто повторите шаги установки из раздела выше.
+
+
+## Если data хранится отдельно
+
+Можно просто скопировать каталог `data/` в чистый клон репозитория и сразу запускать:
+
+```powershell
+. .\scripts\00_bootstrap.ps1 --mode training --require-piper-training
+python -m app.main train --project ddn_vladimir
+```
+
+Bootstrap установит runtime `piper-tts` и подключит training-модули из `third_party/piper1-gpl` автоматически.
 
 ## Быстрые команды
 

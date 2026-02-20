@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import argparse
-import importlib.util
+import importlib
 import shlex
 import subprocess
 import sys
@@ -62,22 +62,26 @@ def _detect_phonemizer_backend(phoneme_type: str) -> str:
     if phoneme_type != "espeak":
         return f"{phoneme_type} (configured)"
 
-    if importlib.util.find_spec("piper.espeakbridge") is not None:
+    try:
+        importlib.import_module("piper.espeakbridge")
         return "piper.espeakbridge"
-
-    if importlib.util.find_spec("espeakbridge") is not None:
-        return "espeakbridge (fallback)"
-
-    if importlib.util.find_spec("piper_phonemize") is not None:
-        return "piper_phonemize"
-
-    return "missing (install/repair training deps)"
+    except Exception:
+        return "missing (runtime piper-tts is not available)"
 
 
 
 
 def _assert_training_runtime_preflight(phoneme_type: str) -> None:
-    piper_train_available = importlib.util.find_spec("piper.train.vits") is not None
+    piper_train_available = False
+
+    try:
+        from training.piper_train_bootstrap import validate_runtime_and_training_imports
+
+        validate_runtime_and_training_imports()
+        piper_train_available = True
+    except Exception:
+        piper_train_available = False
+
     phonemizer_backend = _detect_phonemizer_backend(phoneme_type)
 
     LOGGER.info("[train] preflight python: %s", Path(sys.executable).resolve())
@@ -86,15 +90,16 @@ def _assert_training_runtime_preflight(phoneme_type: str) -> None:
 
     failures: list[str] = []
     if not piper_train_available:
-        failures.append("- Не найден piper.train.vits")
+        failures.append("- Не удалось импортировать piper.train.vits через training bootstrap")
     if phoneme_type == "espeak" and phonemizer_backend.startswith("missing"):
-        failures.append("- Не найден backend фонемизации для phoneme_type=espeak")
+        failures.append("- Не удалось импортировать piper.espeakbridge (runtime piper-tts)")
 
     if failures:
         raise RuntimeError(
             "Training preflight failed before subprocess launch:\n"
             + "\n".join(failures)
             + "\nКак починить:\n"
+            "  * python -m pip install piper-tts==1.4.1\n"
             "  * python scripts/00_setup_env.py --require-piper-training"
         )
 def _log_training_runtime_info(

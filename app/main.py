@@ -7,6 +7,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_PROJECT_NAME = REPO_ROOT.name
+PROJECTS_ROOT = REPO_ROOT / "data" / "projects"
 
 if __package__ in (None, ""):
     # Поддержка запуска как `python app/main.py ...` без конфликта с внешним
@@ -47,7 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     s_prepare = sub.add_parser("prepare")
     s_prepare.add_argument("--text")
-    s_prepare.add_argument("--project", default=DEFAULT_PROJECT_NAME)
+    s_prepare.add_argument("--project")
 
     s_record = sub.add_parser(
         "record",
@@ -56,11 +57,11 @@ def build_parser() -> argparse.ArgumentParser:
             "(сохранение WAV в recordings/wav_22050/)"
         ),
     )
-    s_record.add_argument("--project", default=DEFAULT_PROJECT_NAME)
+    s_record.add_argument("--project")
     s_record.add_argument("--port", type=int, default=8765)
 
     s_train = sub.add_parser("train")
-    s_train.add_argument("--project", default=DEFAULT_PROJECT_NAME)
+    s_train.add_argument("--project")
     s_train.add_argument(
         "--model.vocoder_warmstart_ckpt",
         dest="vocoder_warmstart_ckpt",
@@ -96,7 +97,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     s_export = sub.add_parser("export")
-    s_export.add_argument("--project", default=DEFAULT_PROJECT_NAME)
+    s_export.add_argument("--project")
     s_export.add_argument("--ckpt")
 
     s_test = sub.add_parser("test")
@@ -107,7 +108,7 @@ def build_parser() -> argparse.ArgumentParser:
     s_test.add_argument("--mode", choices=["text", "espeak"], default="text")
 
     s_doctor = sub.add_parser("doctor")
-    s_doctor.add_argument("--project", default=DEFAULT_PROJECT_NAME)
+    s_doctor.add_argument("--project")
     s_doctor.add_argument("--auto-fix", action="store_true")
     s_doctor.add_argument(
         "--audio-dir",
@@ -139,6 +140,26 @@ def _find_default_text_file(repo_root: Path) -> Path | None:
     return None
 
 
+
+
+def resolve_project_name(explicit_project: str | None) -> str:
+    if explicit_project:
+        return explicit_project
+
+    if PROJECTS_ROOT.exists():
+        projects = sorted(p.name for p in PROJECTS_ROOT.iterdir() if p.is_dir())
+        if len(projects) == 1:
+            return projects[0]
+        if "ddn_vladimir" in projects:
+            return "ddn_vladimir"
+
+    logging.info(
+        "Project was not specified. Falling back to repository name '%s'. "
+        "Укажите --project <name> для явного выбора.",
+        DEFAULT_PROJECT_NAME,
+    )
+    return DEFAULT_PROJECT_NAME
+
 def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
@@ -147,6 +168,9 @@ def main() -> None:
     from utils import setup_logging
 
     setup_logging()
+
+    if hasattr(args, "project"):
+        args.project = resolve_project_name(args.project)
 
     if args.cmd == "prepare":
         from app.workflows import prepare_dataset

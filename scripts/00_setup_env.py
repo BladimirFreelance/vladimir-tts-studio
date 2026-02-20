@@ -305,37 +305,21 @@ def module_available(python_cmd: list[str], module_name: str) -> bool:
 
 def check_piper_modules(python_cmd: list[str]) -> tuple[bool, bool]:
     has_base = module_available(python_cmd, "piper")
-    has_training = module_available(python_cmd, "piper.train.vits")
+
+    probe_training = (
+        "from training.piper_train_bootstrap import validate_runtime_and_training_imports;"
+        "validate_runtime_and_training_imports()"
+    )
+    completed = run_result(python_cmd + ["-c", probe_training])
+    has_training = completed.returncode == 0
     return has_base, has_training
 
 
 def warn_if_espeakbridge_missing(python_cmd: list[str]) -> None:
-    probe = (
-        "import importlib,sys;"
-        "ok=True;"
-        "\ntry:\n importlib.import_module('piper.espeakbridge')\n"
-        "except Exception:\n"
-        "  try:\n   m=importlib.import_module('espeakbridge');sys.modules['piper.espeakbridge']=m\n"
-        "  except Exception as e:\n"
-        "   ok=False;print('[WARN] piper.espeakbridge недоступен:', e)\n"
-        "sys.exit(0 if ok else 0)"
-    )
-    subprocess.run(python_cmd + ["-c", probe], check=False)
-
-
-def detect_phonemizer_backend(python_cmd: list[str]) -> str:
-    probe = (
-        "import importlib.util;"
-        "backend='missing';"
-        "backend='piper.espeakbridge' if importlib.util.find_spec('piper.espeakbridge') else backend;"
-        "backend='espeakbridge' if backend=='missing' and importlib.util.find_spec('espeakbridge') else backend;"
-        "backend='piper_phonemize' if backend=='missing' and importlib.util.find_spec('piper_phonemize') else backend;"
-        "print(backend)"
-    )
+    probe = "import importlib; importlib.import_module('piper.espeakbridge'); print('[OK] piper.espeakbridge importable')"
     completed = run_result(python_cmd + ["-c", probe])
     if completed.returncode != 0:
-        return "missing"
-    return (completed.stdout or "").strip() or "missing"
+        print("[WARN] piper.espeakbridge недоступен")
 
 
 def _windows_build_tools_hints() -> list[str]:
@@ -345,12 +329,12 @@ def _windows_build_tools_hints() -> list[str]:
 
     if shutil.which("cl") is None:
         hints.append(
-            "- Установите Visual Studio 2022 Build Tools (C++ workload): https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+            "- (optional advanced) Visual Studio 2022 Build Tools (C++ workload): https://visualstudio.microsoft.com/visual-cpp-build-tools/"
         )
     if shutil.which("cmake") is None:
-        hints.append("- Установите CMake и добавьте в PATH: https://cmake.org/download/")
+        hints.append("- (optional advanced) CMake: https://cmake.org/download/")
     if shutil.which("ninja") is None:
-        hints.append("- Установите Ninja (например: pip install ninja) и добавьте в PATH")
+        hints.append("- (optional advanced) Ninja: pip install ninja")
     if shutil.which("espeak-ng") is None:
         hints.append("- Установите espeak-ng и добавьте в PATH: https://github.com/espeak-ng/espeak-ng/releases")
     return hints
@@ -371,18 +355,19 @@ def clone_or_update_piper_training_repo(target_dir: Path) -> None:
 def verify_piper_training_install(python_cmd: list[str]) -> bool:
     has_base, has_training = check_piper_modules(python_cmd)
     install_hint = format_install_command_for_help(
-        "-m", "pip", "install", "-e", ".\\third_party\\piper1-gpl[train]"
+        "-m", "pip", "install", "piper-tts==1.4.1"
     )
     if not has_base:
-        print("[FAIL] Базовый модуль `piper` не найден.")
-        print(f"[HINT] Выполните: {install_hint}")
+        print(f"[FAIL] Не найден runtime пакет piper (piper-tts). Выполните: {install_hint}")
         return False
     if not has_training:
-        print("[FAIL] Не найден обязательный модуль обучения `piper.train.vits`.")
-        print("[HINT] Piper runtime установлен, но блок обучения недоступен.")
-        print(f"[HINT] Выполните: {install_hint}")
+        print("[FAIL] Не удалось импортировать piper.train.vits через training bootstrap.")
+        print(
+            "[HINT] Проверьте исходники third_party/piper1-gpl и повторите: "
+            + format_install_command_for_help("scripts/00_setup_env.py", "--require-piper-training")
+        )
         return False
-    print("[OK] Piper training available: piper.train.vits")
+    print("[OK] Piper runtime + training bootstrap доступны")
     return True
 
 
@@ -399,30 +384,12 @@ def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root:
             return False
         raise RuntimeError("Не удалось клонировать/обновить third_party/piper1-gpl") from error
 
-    run_install_with_espeakbridge_tolerance(pip_cmd, ["install", "-e", f"{repo_dir}[train]"])
+    run(pip_cmd + ["install", "piper-tts==1.4.1"])
 
     if verify_piper_training_install(python_cmd):
-        backend = detect_phonemizer_backend(python_cmd)
-        if backend != "missing":
-            print(f"[OK] Phonemizer backend available: {backend}")
-            return True
+        return True
 
-        msg = (
-            "Не найден backend фонемизации для training (ожидался один из: "
-            "piper.espeakbridge / espeakbridge / piper_phonemize)."
-        )
-        print(f"[FAIL] {msg}")
-        hints = _windows_build_tools_hints()
-        if hints:
-            print("[HINT] Для Windows установите недостающие компоненты:")
-            for hint in hints:
-                print(hint)
-        if allow_missing:
-            print("[WARN] Продолжаю без рабочего training-фонемайзера.")
-            return False
-        raise RuntimeError(msg)
-
-    msg = "Не удалось подготовить Piper training-модули (требуется piper.train.vits)."
+    msg = "Не удалось подготовить Piper training-модули (runtime piper-tts + piper.train.vits через bootstrap)."
     if allow_missing:
         print(f"[WARN] {msg}")
         print("[!] Продолжаю без training-модулей. Синтез (piper-tts) будет работать, обучение — нет.")
@@ -437,7 +404,7 @@ def install_piper_training(pip_cmd: list[str], python_cmd: list[str], repo_root:
 {msg}
 Команды ручного восстановления:
 git clone {PIPER_GPL_REPO} third_party/piper1-gpl
-{format_install_command_for_help('-m', 'pip', 'install', '-e', '.\\third_party\\piper1-gpl[train]')}"""
+{format_install_command_for_help('-m', 'pip', 'install', 'piper-tts==1.4.1')}"""
     )
 
 
@@ -448,8 +415,6 @@ def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str], repo_root: 
     has_base, _ = check_piper_modules(python_cmd)
     if not has_base:
         raise RuntimeError("[FAIL] Базовый модуль piper не найден после установки runtime-зависимостей.")
-
-
 def print_system_hints() -> None:
     if shutil.which("ffmpeg") is None:
         print("\n[!] ffmpeg не найден в PATH. Для авто-исправления аудио doctor-ом установите ffmpeg.")

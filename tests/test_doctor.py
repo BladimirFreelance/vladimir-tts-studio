@@ -42,7 +42,10 @@ def test_check_imports_reports_missing_training_modules(monkeypatch):
         raise ImportError(name)
 
     monkeypatch.setattr("app.doctor.importlib.import_module", fake_import)
-    monkeypatch.setattr("app.doctor.importlib.util.find_spec", lambda _name: None)
+    monkeypatch.setattr(
+        "training.piper_train_bootstrap.validate_runtime_and_training_imports",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("missing train")),
+    )
     monkeypatch.setattr("app.doctor.shutil.which", lambda _name: "/usr/bin/espeak-ng")
 
     issues = check_imports()
