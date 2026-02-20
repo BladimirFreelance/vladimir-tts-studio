@@ -162,3 +162,49 @@ def test_check_manifest_uses_custom_audio_dir(tmp_path: Path) -> None:
 
     assert stats["ok"] == 1
     assert stats["missing"] == 0
+
+
+def test_check_manifest_auto_fix_rewrites_paths_to_filenames(tmp_path: Path) -> None:
+    project_dir = tmp_path / "demo"
+    manifest_path = project_dir / "metadata" / "train.csv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        "recordings/wav_22050/001.wav|ok\n"
+        "../recordings/wav_22050/002.wav|ok2\n",
+        encoding="utf-8",
+    )
+
+    _write_wav(project_dir / "recordings" / "wav_22050" / "001.wav")
+    _write_wav(project_dir / "recordings" / "wav_22050" / "002.wav")
+
+    stats = check_manifest(project_dir, auto_fix=True)
+
+    assert stats["path_fixed"] == 2
+    assert manifest_path.read_text(encoding="utf-8") == "001.wav|ok\n002.wav|ok2\n"
+
+
+def test_run_doctor_auto_fix_creates_audio_and_cache_dirs(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr("app.doctor.check_imports", lambda: [])
+    monkeypatch.setattr(
+        "app.doctor.check_manifest",
+        lambda _project_dir, auto_fix=False, audio_dir=None: {
+            "rows": 0,
+            "ok": 1,
+            "missing": 0,
+            "fixed": 0,
+            "path_fixed": 0,
+            "invalid_paths": 0,
+            "sample_rate_mismatch": 0,
+            "duration_min": 0.0,
+            "error": "",
+        },
+    )
+
+    project_dir = tmp_path / "demo"
+    code = run_doctor(project_dir, auto_fix=True, require_audio=False)
+
+    assert code == 0
+    assert (project_dir / "recordings" / "wav_22050").is_dir()
+    assert (project_dir / "cache").is_dir()
