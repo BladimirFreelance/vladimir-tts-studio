@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import argparse
 import shlex
 import subprocess
 import sys
@@ -13,7 +14,6 @@ except ImportError:  # pragma: no cover - optional dependency for pre-flight dia
     torch = None
 
 from dataset.manifest import read_manifest
-from training.utils import ensure_espeakbridge_import
 from utils import load_yaml, write_json
 
 LOGGER = logging.getLogger(__name__)
@@ -181,13 +181,7 @@ def run_training(
         force_cpu=force_cpu,
         preferred_gpu_name=preferred_gpu_name,
     )
-    try:
-        ensure_espeakbridge_import()
-    except RuntimeError as exc:
-        LOGGER.warning("%s", exc)
-        LOGGER.warning(
-            "Продолжаю запуск обучения: espeakbridge может быть не нужен на этом этапе."
-        )
+
     cfg = load_yaml(config_path or Path("configs/train_default.yaml"))
     manifest = project_dir / "metadata" / "train.csv"
     rows = read_manifest(manifest)
@@ -233,7 +227,6 @@ def run_training(
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = resolve_train_base_command() + ["fit"]
-    cmd += ["--data.config_path", str(data_config)]
     cmd += ["--data.dataset_type", "text"]
     cmd += ["--data.voice_name", project_dir.name]
     cmd += ["--data.csv_path", str(manifest)]
@@ -268,4 +261,16 @@ def run_training(
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    run_training(Path(sys.argv[1]), epochs=50)
+    parser = argparse.ArgumentParser(description="Запуск локального обучения Piper")
+    parser.add_argument("project_dir", type=Path)
+    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--force_cpu", action="store_true")
+    parser.add_argument("--gpu-name", dest="preferred_gpu_name")
+    args = parser.parse_args()
+
+    run_training(
+        args.project_dir,
+        epochs=args.epochs,
+        force_cpu=args.force_cpu,
+        preferred_gpu_name=args.preferred_gpu_name,
+    )
