@@ -13,7 +13,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency for pre-flight diagnostics
     torch = None
 
-from dataset.manifest import read_manifest
+from dataset.manifest import read_manifest, resolve_audio_path
 from training.utils import ensure_espeakbridge_import
 from utils import load_yaml, write_json
 
@@ -108,20 +108,21 @@ def detect_supported_gpu_or_raise() -> dict[str, str]:
 
 
 def _assert_manifest_audio(project_dir: Path, rows: list[tuple[str, str]]) -> int:
-    audio_dir = project_dir / "recordings" / "wav_22050"
     missing: list[str] = []
     for audio, _text in rows:
-        filename = Path(audio).name
-        if not filename:
+        normalized = audio.replace("\\", "/").strip()
+        if not normalized:
             missing.append(audio)
             continue
-        if not (audio_dir / filename).exists():
-            missing.append(filename)
+
+        wav_path = resolve_audio_path(project_dir, normalized)
+        if not wav_path.exists():
+            missing.append(normalized)
 
     if missing:
         preview = ", ".join(missing[:3])
         raise RuntimeError(
-            "Manifest указывает на отсутствующие WAV в recordings/wav_22050. "
+            "Manifest указывает на отсутствующие WAV. "
             f"Отсутствует: {len(missing)} (примеры: {preview})."
         )
 
@@ -138,11 +139,31 @@ def run_training(
     base_ckpt: str | None = None,
 ) -> None:
     train_env_patch = detect_supported_gpu_or_raise()
-    ensure_espeakbridge_import()
+    try:
+        ensure_espeakbridge_import()
+    except RuntimeError as exc:
+        LOGGER.warning("%s", exc)
+        LOGGER.warning(
+            "Продолжаю запуск обучения: espeakbridge может быть не нужен на этом этапе."
+        )
     cfg = load_yaml(config_path or Path("configs/train_default.yaml"))
     manifest = project_dir / "metadata" / "train.csv"
     rows = read_manifest(manifest)
-    existing = _assert_manifest_audio(project_dir, rows)
+
+    try:
+        existing = _assert_manifest_audio(project_dir, rows)
+    except RuntimeError:
+        from app.doctor import check_manifest
+
+        stats = check_manifest(project_dir, auto_fix=True)
+        if stats.get("path_fixed", 0) > 0:
+            LOGGER.info(
+                "doctor auto-fix обновил manifest paths: %s. Повторяю проверку.",
+                stats["path_fixed"],
+            )
+            rows = read_manifest(manifest)
+        existing = _assert_manifest_audio(project_dir, rows)
+
     if existing <= 0:
         raise RuntimeError(
             "Обнаружено 0 utterances. Проверьте запись в студии и что WAV-файлы существуют в recordings/wav_22050. "
