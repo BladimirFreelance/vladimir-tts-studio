@@ -170,6 +170,7 @@ def run_training(
     vocoder_warmstart_ckpt: str | None = None,
     config_path: Path | None = None,
     batch_size: int | None = None,
+    learning_rate: float | None = None,
     audio_dir: Path | None = None,
     *,
     base_ckpt: str | None = None,
@@ -238,7 +239,8 @@ def run_training(
     cmd += ["--data.espeak_voice", cfg["training"]["espeak_voice"]]
     resolved_batch_size = batch_size or int(cfg["training"]["batch_size"])
     cmd += ["--data.batch_size", str(resolved_batch_size)]
-    cmd += ["--model.learning_rate", str(cfg["training"]["learning_rate"])]
+    resolved_learning_rate = learning_rate or float(cfg["training"]["learning_rate"])
+    cmd += ["--model.learning_rate", str(resolved_learning_rate)]
 
     selected_ckpt = vocoder_warmstart_ckpt or base_ckpt or (
         discover_warmstart()
