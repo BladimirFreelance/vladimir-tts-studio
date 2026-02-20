@@ -3,32 +3,59 @@
 `vladimir-tts-studio` — локальный пайплайн для подготовки датасета, записи, обучения Piper, экспорта ONNX и проверки окружения на Windows.
 
 
-## Хранение данных
+## Quick Start (Windows)
 
-- Папка `data/` предназначена для рабочих датасетов и должна храниться отдельно от репозитория (например, на отдельном диске/папке с бэкапом).
-- В git хранятся только шаблонные `.gitkeep`; реальные записи, проекты и артефакты не коммитьте.
-
-## Быстрая автономная установка на чистом устройстве
-
-1) Установите Python 3.11+ и Git.
-2) Установите **eSpeak NG** (это отдельная программа, не pip-пакет).
-3) В корне репозитория выполните:
+### 1) Клонируйте репозиторий
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\00_setup_env.ps1
+git clone <repo-url>
+cd vladimir-tts-studio
 ```
 
-Что делает скрипт:
-- создаёт/активирует `.venv`;
-- устанавливает зависимости проекта;
-- ставит runtime/training-компоненты Piper;
-- подготавливает базу для дальнейших команд.
+### 2) Запустите bootstrap-скрипт
 
-> Для полностью автоматического сценария «с нуля» можно использовать one-click:
->
-> ```powershell
-> powershell -ExecutionPolicy Bypass -File .\scripts\00_one_click.ps1 -Project ddn_vladimir -Text .\data\projects\ddn_vladimir\input_texts\testdata.txt
-> ```
+```powershell
+.\scripts\00_bootstrap.ps1
+```
+
+### 3) Подготовьте Python-окружение и training-компоненты
+
+```powershell
+python scripts/00_setup_env.py --require-piper-training
+```
+
+### 4) Запустите обучение
+
+Вариант A:
+
+```powershell
+python scripts/03_train_one_click.py --project <имя>
+```
+
+Вариант B:
+
+```powershell
+.\scripts\run.ps1 train --project <имя>
+```
+
+## Таблица зависимостей (Windows)
+
+| Компонент | Обязательно | Примечание |
+| --- | --- | --- |
+| Python 3.12 | Да | Рекомендуется установка из официального дистрибутива Python. |
+| Git | Да | Нужен для клонирования и обновления репозитория. |
+| eSpeak NG | Да | Установите официальный Windows-инсталлятор: https://github.com/espeak-ng/espeak-ng/releases |
+| ffmpeg | Да | Нужен для обработки аудио в пайплайне. |
+
+## Сохранение данных и бэкап
+
+Для переноса проекта на другой ПК или резервного копирования достаточно сохранить папки конкретного проекта:
+
+- `data/projects/<name>/recordings/`
+- `data/projects/<name>/metadata/`
+- `data/projects/<name>/runs/`
+
+`data/projects/<name>/.venv` сохранять не нужно: виртуальное окружение пересоздаётся командами bootstrap/setup.
 
 ## Важные инструменты (без лишнего)
 
