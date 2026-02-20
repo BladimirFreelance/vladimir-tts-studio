@@ -391,15 +391,13 @@ git clone {PIPER_GPL_REPO} third_party/piper1-gpl
 
 
 def install_piper_runtime(pip_cmd: list[str], python_cmd: list[str], repo_root: Path) -> None:
-    print("[i] Устанавливаю Piper runtime из third_party/piper1-gpl[train]...")
-    repo_dir = repo_root / "third_party" / "piper1-gpl"
-    clone_or_update_piper_training_repo(repo_dir)
-    run(pip_cmd + ["uninstall", "-y", "piper-tts"])
-    run_install_with_espeakbridge_tolerance(pip_cmd, ["install", "-e", f"{repo_dir}[train]"])
+    _ = repo_root
+    print("[i] Устанавливаю Piper runtime (piper-tts)...")
+    run_install_with_espeakbridge_tolerance(pip_cmd, ["install", "piper-tts"])
 
     has_base, _ = check_piper_modules(python_cmd)
     if not has_base:
-        raise RuntimeError("[FAIL] Базовый модуль piper не найден после установки third_party/piper1-gpl[train].")
+        raise RuntimeError("[FAIL] Базовый модуль piper не найден после установки piper-tts.")
 
 
 def print_system_hints() -> None:
@@ -487,8 +485,6 @@ def main() -> int:
 
     install_torch(pip_cmd, args.torch)
     print_torch_summary(python_cmd)
-    install_piper_runtime(pip_cmd, python_cmd, repo_root)
-    warn_if_espeakbridge_missing(python_cmd)
 
     if args.extras:
         run(pip_cmd + ["install", *args.extras])
@@ -500,11 +496,16 @@ def main() -> int:
         except RuntimeError as error:
             print(error)
             return 1
+        warn_if_espeakbridge_missing(python_cmd)
     elif not verify_piper_training_install(python_cmd):
+        install_piper_runtime(pip_cmd, python_cmd, repo_root)
+        warn_if_espeakbridge_missing(python_cmd)
         if args.require_piper_training:
             print("[FAIL] Piper training missing (указан --require-piper-training)")
             return 1
         print("[WARN] Piper training missing")
+    else:
+        warn_if_espeakbridge_missing(python_cmd)
 
     if args.require_piper_training and not verify_piper_training_install(python_cmd):
         print("[FAIL] Не удалось импортировать piper.train.vits после установки.")

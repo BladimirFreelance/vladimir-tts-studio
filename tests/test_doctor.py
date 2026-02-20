@@ -6,7 +6,13 @@ from pathlib import Path
 
 import pytest
 
-from app.doctor import check_imports, check_manifest, run_doctor
+from app.doctor import (
+    assert_training_preflight,
+    build_training_preflight_report,
+    check_imports,
+    check_manifest,
+    run_doctor,
+)
 
 
 def _write_wav(
@@ -208,3 +214,45 @@ def test_run_doctor_auto_fix_creates_audio_and_cache_dirs(
     assert code == 0
     assert (project_dir / "recordings" / "wav_22050").is_dir()
     assert (project_dir / "cache").is_dir()
+
+
+def test_build_training_preflight_report_returns_fixes(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "app.doctor.check_imports",
+        lambda: [
+            "Piper training module not found",
+            "PyTorch not importable (training unavailable)",
+        ],
+    )
+    monkeypatch.setattr(
+        "app.doctor.check_manifest",
+        lambda *_args, **_kwargs: {
+            "ok": 0,
+            "missing": 1,
+            "error": "manifest_missing",
+        },
+    )
+
+    blocking, remediation = build_training_preflight_report(tmp_path / "demo")
+
+    assert any("Piper training" in item for item in blocking)
+    assert any("PyTorch" in item for item in blocking)
+    assert any("metadata/train.csv" in item for item in blocking)
+    assert any("00_setup_env.py --require-piper-training" in item for item in remediation)
+
+
+def test_assert_training_preflight_raises_with_hints(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        "app.doctor.build_training_preflight_report",
+        lambda *_args, **_kwargs: (
+            ["Нет готовых записей"],
+            ["python scripts/06_doctor.py --project demo --auto-fix"],
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="Training preflight failed"):
+        assert_training_preflight(tmp_path / "demo")

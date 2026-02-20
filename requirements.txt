@@ -3,8 +3,8 @@ fastapi>=0.112.0
 uvicorn>=0.30.0
 python-multipart>=0.0.9
 
-# Piper runtime + training
-piper-tts
+# Piper runtime/training are installed by scripts/00_setup_env.py
+# to avoid runtime-vs-training dependency conflicts.
 
 # Audio/phoneme tooling
 ffmpeg-python

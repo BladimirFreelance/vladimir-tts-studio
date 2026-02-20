@@ -178,6 +178,10 @@ def run_training(
     preferred_gpu_name: str | None = None,
 ) -> None:
     resolved_audio_dir = audio_dir or project_dir / "recordings" / "wav_22050"
+    from app.doctor import assert_training_preflight
+
+    assert_training_preflight(project_dir, audio_dir=resolved_audio_dir)
+
     train_env_patch = detect_supported_gpu_or_raise(
         force_cpu=force_cpu,
         preferred_gpu_name=preferred_gpu_name,
