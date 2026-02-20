@@ -146,8 +146,49 @@ def test_run_training_checks_audio_in_wav_22050(
         lambda _manifest: [("missing.wav", "text")],
     )
 
-    with pytest.raises(RuntimeError, match="recordings/wav_22050"):
+    with pytest.raises(RuntimeError, match="Manifest указывает на отсутствующие WAV"):
         run_training(project_dir, epochs=1)
+
+
+def test_run_training_supports_manifest_subpaths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+    nested = project_dir / "recordings" / "custom" / "nested"
+    nested.mkdir(parents=True)
+    (nested / "001.wav").write_bytes(b"RIFF")
+    monkeypatch.setattr(
+        "training.train.read_manifest",
+        lambda _manifest: [("recordings/custom/nested/001.wav", "text")],
+    )
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
+    )
+    monkeypatch.setattr("training.train.subprocess.run", lambda *_args, **_kwargs: None)
+
+    run_training(project_dir, epochs=1)
+
+
+def test_run_training_warns_when_espeakbridge_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+    monkeypatch.setattr(
+        "training.train.ensure_espeakbridge_import",
+        lambda: (_ for _ in ()).throw(RuntimeError("no espeakbridge")),
+    )
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
+    )
+    monkeypatch.setattr("training.train.subprocess.run", lambda *_args, **_kwargs: None)
+
+    run_training(project_dir, epochs=1)
+
+    assert "no espeakbridge" in caplog.text
 
 
 def test_detect_supported_gpu_or_raise_uses_first_compatible(
