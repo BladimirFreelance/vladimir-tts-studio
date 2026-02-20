@@ -52,7 +52,15 @@ python -m training.piper_train_bootstrap --help
 Запуск обучения:
 
 ```bash
-python -m app.main train --project ddn_vladimir
+python -m app.main train --project ddn_vladimir --gpu-name "3060"
+# или принудительно CPU
+python -m app.main train --project ddn_vladimir --force_cpu
+```
+
+One-click обучение (doctor + автоподбор GPU/CPU + train + опциональный export/test):
+
+```bash
+python scripts/03_train_one_click.py --project ddn_vladimir --gpu-name "3060"
 ```
 
 ### 3) Doctor (исправлено и обязательно)

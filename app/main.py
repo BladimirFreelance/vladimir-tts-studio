@@ -66,6 +66,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s_train.add_argument("--epochs", type=int, default=50)
     s_train.add_argument("--batch-size", type=int, dest="batch_size")
+    s_train.add_argument(
+        "--audio-dir",
+        type=Path,
+        help="Каталог с WAV для обучения (по умолчанию recordings/wav_22050)",
+    )
+    s_train.add_argument(
+        "--force_cpu",
+        action="store_true",
+        help="Принудительно отключить CUDA и обучать на CPU",
+    )
+    s_train.add_argument(
+        "--gpu-name",
+        dest="preferred_gpu_name",
+        help='Подстрока имени GPU для приоритетного выбора (например, "3060")',
+    )
 
     s_export = sub.add_parser("export")
     s_export.add_argument("--project", required=True)
@@ -124,6 +139,9 @@ def main() -> None:
             epochs=args.epochs,
             vocoder_warmstart_ckpt=args.vocoder_warmstart_ckpt,
             batch_size=args.batch_size,
+            audio_dir=args.audio_dir,
+            force_cpu=args.force_cpu,
+            preferred_gpu_name=args.preferred_gpu_name,
         )
     elif args.cmd == "export":
         from training.export_onnx import export_onnx

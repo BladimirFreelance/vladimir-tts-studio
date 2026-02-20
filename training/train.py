@@ -13,7 +13,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency for pre-flight diagnostics
     torch = None
 
-from dataset.manifest import read_manifest, resolve_audio_path
+from dataset.manifest import read_manifest
 from training.utils import ensure_espeakbridge_import
 from utils import load_yaml, write_json
 
@@ -58,7 +58,13 @@ def resolve_train_base_command() -> list[str]:
     )
 
 
-def detect_supported_gpu_or_raise() -> dict[str, str]:
+def detect_supported_gpu_or_raise(
+    *, force_cpu: bool = False, preferred_gpu_name: str | None = None
+) -> dict[str, str]:
+    if force_cpu:
+        LOGGER.info("Выбран принудительный запуск на CPU (--force_cpu)")
+        return {"CUDA_VISIBLE_DEVICES": ""}
+
     if os.getenv("CUDA_VISIBLE_DEVICES"):
         LOGGER.info("CUDA_VISIBLE_DEVICES уже задан, использую его без изменений")
         return {}
@@ -67,7 +73,26 @@ def detect_supported_gpu_or_raise() -> dict[str, str]:
         LOGGER.warning("CUDA недоступна, запускаю обучение на CPU")
         return {}
 
+    preferred = (preferred_gpu_name or "").strip().lower()
+    preferred_candidates: list[int] = []
+    fallback_candidates: list[int] = []
+
     for index in range(torch.cuda.device_count()):
+        device_name = torch.cuda.get_device_name(index)
+        if preferred and preferred in device_name.lower():
+            preferred_candidates.append(index)
+        else:
+            fallback_candidates.append(index)
+
+    if preferred and not preferred_candidates:
+        LOGGER.warning(
+            "GPU с именем '%s' не найден. Продолжаю обычный автоподбор.",
+            preferred_gpu_name,
+        )
+
+    candidate_indexes = preferred_candidates + fallback_candidates
+
+    for index in candidate_indexes:
         device_name = torch.cuda.get_device_name(index)
         capability = torch.cuda.get_device_capability(index)
         try:
@@ -107,17 +132,17 @@ def detect_supported_gpu_or_raise() -> dict[str, str]:
     return {"CUDA_VISIBLE_DEVICES": ""}
 
 
-def _assert_manifest_audio(project_dir: Path, rows: list[tuple[str, str]]) -> int:
+def _assert_manifest_audio(audio_dir: Path, rows: list[tuple[str, str]]) -> int:
     missing: list[str] = []
     for audio, _text in rows:
-        normalized = audio.replace("\\", "/").strip()
-        if not normalized:
+        audio_name = Path(audio).name.strip()
+        if not audio_name:
             missing.append(audio)
             continue
 
-        wav_path = resolve_audio_path(project_dir, normalized)
+        wav_path = audio_dir / audio_name
         if not wav_path.exists():
-            missing.append(normalized)
+            missing.append(audio_name)
 
     if missing:
         preview = ", ".join(missing[:3])
@@ -135,10 +160,17 @@ def run_training(
     vocoder_warmstart_ckpt: str | None = None,
     config_path: Path | None = None,
     batch_size: int | None = None,
+    audio_dir: Path | None = None,
     *,
     base_ckpt: str | None = None,
+    force_cpu: bool = False,
+    preferred_gpu_name: str | None = None,
 ) -> None:
-    train_env_patch = detect_supported_gpu_or_raise()
+    resolved_audio_dir = audio_dir or project_dir / "recordings" / "wav_22050"
+    train_env_patch = detect_supported_gpu_or_raise(
+        force_cpu=force_cpu,
+        preferred_gpu_name=preferred_gpu_name,
+    )
     try:
         ensure_espeakbridge_import()
     except RuntimeError as exc:
@@ -151,7 +183,7 @@ def run_training(
     rows = read_manifest(manifest)
 
     try:
-        existing = _assert_manifest_audio(project_dir, rows)
+        existing = _assert_manifest_audio(resolved_audio_dir, rows)
     except RuntimeError:
         from app.doctor import check_manifest
 
@@ -162,7 +194,7 @@ def run_training(
                 stats["path_fixed"],
             )
             rows = read_manifest(manifest)
-        existing = _assert_manifest_audio(project_dir, rows)
+        existing = _assert_manifest_audio(resolved_audio_dir, rows)
 
     if existing <= 0:
         raise RuntimeError(
@@ -190,7 +222,7 @@ def run_training(
     cmd += ["--data.dataset_type", "text"]
     cmd += ["--data.voice_name", project_dir.name]
     cmd += ["--data.csv_path", str(manifest)]
-    cmd += ["--data.audio_dir", str(project_dir / "recordings" / "wav_22050")]
+    cmd += ["--data.audio_dir", str(resolved_audio_dir)]
     cmd += ["--data.cache_dir", str(project_dir / "cache")]
     cmd += ["--trainer.max_epochs", str(epochs)]
     cmd += ["--trainer.default_root_dir", str(runs_dir)]
