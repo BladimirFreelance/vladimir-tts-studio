@@ -9,7 +9,12 @@ $setupScript = Join-Path $repoRoot 'scripts\00_setup_env.py'
 $isDotSourced = $MyInvocation.InvocationName -eq '.'
 
 if (-not $isDotSourced) {
-    Write-Host 'Запусти так: . .\scripts\00_bootstrap.ps1'
+    Write-Host ''
+    Write-Host '============================================================' -ForegroundColor Red
+    Write-Host 'ОШИБКА: скрипт нужно запускать ТОЛЬКО через dot-sourcing.' -ForegroundColor Red
+    Write-Host 'Правильно:   . .\scripts\00_bootstrap.ps1 --mode training --require-piper-training' -ForegroundColor Yellow
+    Write-Host 'Иначе .venv не активируется в текущей PowerShell-сессии.' -ForegroundColor Red
+    Write-Host '============================================================' -ForegroundColor Red
     exit 1
 }
 

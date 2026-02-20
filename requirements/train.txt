@@ -1,4 +1,15 @@
 -r base.txt
 
-# Training stack is installed from third_party/piper1-gpl[train]
-# via scripts/00_setup_env.py to avoid runtime-vs-training conflicts.
+# Piper runtime wheel (includes phonemizer backend binaries).
+piper-tts==1.4.1
+
+# Piper training dependencies (installed separately from third_party source tree).
+lightning>=2.0.0
+tensorboard>=2.12.0
+jsonargparse[signatures]>=4.27.0
+onnx>=1.14.0
+librosa>=0.10.0
+numpy>=1.24.0
+scipy>=1.10.0
+soundfile>=0.12.0
+tqdm>=4.66.0

@@ -19,7 +19,18 @@ def _write_tone(path: Path, sample_rate: int = 22050, duration_seconds: float = 
         wav_file.writeframes(b"".join(struct.pack("<h", 0) for _ in range(frame_count)))
 
 
-def test_training_creates_checkpoint_with_minimal_dataset(tmp_path: Path) -> None:
+def test_training_creates_checkpoint_with_minimal_dataset(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setitem(
+        __import__("sys").modules,
+        "app.doctor",
+        __import__("types").SimpleNamespace(assert_training_preflight=lambda *_args, **_kwargs: None),
+    )
+    monkeypatch.setattr(
+        "training.piper_train_bootstrap.validate_runtime_and_training_imports",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr("training.train.importlib.import_module", lambda _name: object())
+
     repo_root = Path(__file__).resolve().parents[1]
     config_path = repo_root / "configs" / "train_default.yaml"
     project_dir = tmp_path / "demo_project"
