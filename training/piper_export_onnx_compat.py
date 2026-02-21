@@ -5,6 +5,15 @@ import runpy
 import subprocess
 import sys
 
+from training.piper_train_bootstrap import extend_piper_namespace
+
+
+EXPORT_MODULE_CANDIDATES: tuple[str, ...] = (
+    "piper.export_onnx",
+    "piper.train.export_onnx",
+    "piper.train.vits.export_onnx",
+)
+
 
 def _patch_torch_onnx_export() -> None:
     """Force legacy Torch ONNX exporter path used by piper.export_onnx."""
@@ -31,11 +40,26 @@ def _ensure_onnxscript() -> None:
     )
 
 
+def _choose_export_module() -> str:
+    for module_name in EXPORT_MODULE_CANDIDATES:
+        if importlib.util.find_spec(module_name) is not None:
+            return module_name
+
+    searched = ", ".join(EXPORT_MODULE_CANDIDATES)
+    raise RuntimeError(
+        "Unable to locate Piper ONNX export module. "
+        f"Searched: {searched}. "
+        "Verify third_party/piper sources are present and up to date."
+    )
+
+
 def main() -> None:
+    extend_piper_namespace()
+    module_name = _choose_export_module()
     _ensure_onnxscript()
     _patch_torch_onnx_export()
-    sys.argv[0] = "piper.export_onnx"
-    runpy.run_module("piper.export_onnx", run_name="__main__")
+    sys.argv[0] = module_name
+    runpy.run_module(module_name, run_name="__main__")
 
 
 if __name__ == "__main__":
