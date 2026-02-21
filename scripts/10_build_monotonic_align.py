@@ -66,7 +66,7 @@ def main() -> int:
     shutil.copy2(pyd, target)
     print(f"[OK] Copied to: {target}")
 
-     # Minimal check: runtime phonemizer exists and .pyd is in the expected location.
+    # Minimal check: runtime phonemizer exists and .pyd is in the expected location.
     test_code = (
         "import importlib;"
         "importlib.import_module('piper.espeakbridge');"
