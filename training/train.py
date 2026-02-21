@@ -316,6 +316,7 @@ def run_training(
     runs_dir.mkdir(parents=True, exist_ok=True)
 
     cmd = resolve_train_base_command() + ["fit"]
+    cmd += ["--data.config_path", str(data_config)]
     cmd += ["--data.dataset_type", "text"]
     cmd += ["--data.voice_name", project_dir.name]
     cmd += ["--data.csv_path", str(manifest)]
