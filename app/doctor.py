@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import logging
 import shutil
-import subprocess
-import sys
 from pathlib import Path
 
 from dataset.audio_tools import convert_wav, inspect_wav
@@ -23,11 +21,11 @@ def check_imports() -> list[str]:
         LOGGER.info("training module OK: piper.train.vits (via bootstrap)")
     except SystemExit:
         issues.append(
-            "Piper runtime/training modules are not importable via bootstrap (fix: python scripts/00_setup_env.py --require-piper-training)"
+            "Piper runtime/training modules are not importable via bootstrap (fix: pip install -r requirements/train.txt)"
         )
     except Exception:
         issues.append(
-            "Piper runtime/training modules are not importable via bootstrap (fix: python scripts/00_setup_env.py --require-piper-training)"
+            "Piper runtime/training modules are not importable via bootstrap (fix: pip install -r requirements/train.txt)"
         )
 
     try:
@@ -228,16 +226,16 @@ def build_training_preflight_report(
 
     if any("Piper runtime/training modules are not importable" in issue for issue in issues):
         blocking.append("Не найден Piper training модуль (piper.train.vits).")
-        remediation.append("python scripts/00_setup_env.py --require-piper-training")
+        remediation.append("pip install -r requirements/train.txt")
 
     if any("PyTorch not importable" in issue for issue in issues):
         blocking.append("PyTorch не импортируется: обучение недоступно.")
-        remediation.append("python scripts/00_setup_env.py --torch auto")
+        remediation.append("pip install torch torchvision torchaudio")
 
     if stats.get("error") == "manifest_missing":
         blocking.append("Не найден metadata/train.csv для проекта.")
         remediation.append(
-            f"python scripts/01_prepare_dataset.py --project {project_dir.name}"
+            f"python -m app.main prepare --project {project_dir.name}"
         )
     elif stats.get("error") == "manifest_invalid":
         blocking.append("Формат metadata/train.csv некорректен.")
@@ -246,7 +244,7 @@ def build_training_preflight_report(
     if int(stats.get("ok", 0)) == 0:
         blocking.append("Нет готовых записей для обучения (0 utterances).")
         remediation.append(
-            f"python scripts/06_doctor.py --project {project_dir.name} --auto-fix"
+            f"python -m app.main doctor --project {project_dir.name} --auto-fix"
         )
 
     if int(stats.get("missing", 0)) > 0:
@@ -293,24 +291,10 @@ def run_doctor(
         (project_dir / "cache").mkdir(parents=True, exist_ok=True)
 
     issues = check_imports()
-    if auto_fix and any("Piper training module not found" in issue for issue in issues):
-        LOGGER.info("Trying to auto-fix Piper training installation...")
-        cmd = [
-            sys.executable,
-            "scripts/00_setup_env.py",
-            "--require-piper-training",
-        ]
-        completed = subprocess.run(cmd, check=False)
-        if completed.returncode == 0:
-            issues = [
-                issue
-                for issue in check_imports()
-                if "Piper training module not found" not in issue
-            ]
-        else:
-            LOGGER.warning(
-                "Auto-fix failed. Run manually: python scripts/00_setup_env.py --require-piper-training"
-            )
+    if auto_fix and any("Piper runtime/training modules are not importable" in issue for issue in issues):
+        LOGGER.warning(
+            "Auto-fix for training dependencies is not available. Run manually: pip install -r requirements/train.txt"
+        )
 
     for issue in issues:
         LOGGER.warning(issue)
@@ -331,7 +315,7 @@ def run_doctor(
     if require_audio and stats["ok"] == 0:
         if stats.get("error") == "manifest_missing":
             LOGGER.error(
-                "No manifest found. Run prepare first: python scripts/01_prepare_dataset.py --project %s",
+                "No manifest found. Run prepare first: python -m app.main prepare --project %s",
                 project_dir.name,
             )
         elif stats.get("error") == "manifest_invalid":

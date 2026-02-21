@@ -123,18 +123,13 @@ def test_run_doctor_logs_prepare_hint_when_manifest_missing(
     assert "0 utterances ready for training" not in caplog.text
 
 
-def test_run_doctor_auto_fix_training_invokes_setup(monkeypatch, tmp_path: Path):
+def test_run_doctor_auto_fix_training_logs_manual_install_hint(
+    monkeypatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+):
     monkeypatch.setattr(
         "app.doctor.check_imports",
-        lambda: ["Piper training module not found"]
+        lambda: ["Piper runtime/training modules are not importable via bootstrap"],
     )
-    captured: dict[str, list[str]] = {}
-
-    def fake_run(cmd: list[str], check: bool = False):
-        captured["cmd"] = cmd
-        return types.SimpleNamespace(returncode=0)
-
-    monkeypatch.setattr("app.doctor.subprocess.run", fake_run)
     monkeypatch.setattr(
         "app.doctor.check_manifest",
         lambda _project_dir, auto_fix=False, audio_dir=None: {
@@ -152,11 +147,7 @@ def test_run_doctor_auto_fix_training_invokes_setup(monkeypatch, tmp_path: Path)
 
     run_doctor(tmp_path / "demo", auto_fix=True, require_audio=False)
 
-    assert captured["cmd"][1:] == [
-        "scripts/00_setup_env.py",
-        "--require-piper-training",
-    ]
-
+    assert "pip install -r requirements/train.txt" in caplog.text
 
 def test_check_manifest_uses_custom_audio_dir(tmp_path: Path) -> None:
     project_dir = tmp_path / "demo"
@@ -225,7 +216,7 @@ def test_build_training_preflight_report_returns_fixes(
     monkeypatch.setattr(
         "app.doctor.check_imports",
         lambda: [
-            "Piper training module not found",
+            "Piper runtime/training modules are not importable via bootstrap",
             "PyTorch not importable (training unavailable)",
         ],
     )
@@ -243,7 +234,7 @@ def test_build_training_preflight_report_returns_fixes(
     assert any("Piper training" in item for item in blocking)
     assert any("PyTorch" in item for item in blocking)
     assert any("metadata/train.csv" in item for item in blocking)
-    assert any("00_setup_env.py --require-piper-training" in item for item in remediation)
+    assert any("pip install -r requirements/train.txt" in item for item in remediation)
 
 
 def test_assert_training_preflight_raises_with_hints(
@@ -253,7 +244,7 @@ def test_assert_training_preflight_raises_with_hints(
         "app.doctor.build_training_preflight_report",
         lambda *_args, **_kwargs: (
             ["Нет готовых записей"],
-            ["python scripts/06_doctor.py --project demo --auto-fix"],
+            ["python -m app.main doctor --project demo --auto-fix"],
         ),
     )
 
