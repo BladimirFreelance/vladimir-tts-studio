@@ -46,20 +46,24 @@
     <section class="card">
       <h2>3) Обучение</h2>
       <label>Epochs <input id="epochs" type="number" value="50" min="1" /></label>
-      <label>Base ckpt (опционально) <input id="baseCkpt" placeholder="models/ru_RU-dmitri-medium.ckpt" /></label>
-      <label>Resume ckpt (опционально) <input id="resumeCkpt" placeholder="data/projects/.../runs/best.ckpt" /></label>
+      <label>Base ckpt (опционально) <input id="baseCkpt" list="baseCkptOptions" placeholder="data/models/<project>/<project>-YYYYMMDD-HHMMSS.ckpt" /></label>
+      <datalist id="baseCkptOptions"></datalist>
+      <label>Resume ckpt (опционально) <input id="resumeCkpt" list="resumeCkptOptions" placeholder="data/projects/.../runs/best.ckpt" /></label>
+      <datalist id="resumeCkptOptions"></datalist>
       <button id="trainBtn">Запустить обучение</button>
     </section>
 
     <section class="card">
       <h2>4) Экспорт ONNX</h2>
-      <label>Ckpt (опционально) <input id="exportCkpt" placeholder="data/projects/.../runs/...ckpt" /></label>
+      <label>Ckpt (опционально) <input id="exportCkpt" list="exportCkptOptions" placeholder="data/projects/.../runs/best.ckpt" /></label>
+      <datalist id="exportCkptOptions"></datalist>
       <button id="exportBtn">Экспортировать</button>
     </section>
 
     <section class="card">
       <h2>5) Тест синтеза</h2>
-      <label>Модель ONNX <input id="testModel" placeholder="voices_out/ru_RU-project-medium.onnx" /></label>
+      <label>Модель ONNX <input id="testModel" list="onnxModelOptions" placeholder="voices_out/<model>.onnx" /></label>
+      <datalist id="onnxModelOptions"></datalist>
       <label>Текст <input id="testText" value="Привет! Это тест синтеза." /></label>
       <label>Выходной WAV <input id="testOut" value="voices_out/test_gui.wav" /></label>
       <button id="testBtn">Синтезировать</button>

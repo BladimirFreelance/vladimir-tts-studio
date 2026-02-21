@@ -35,6 +35,44 @@ async function refreshStatus() {
   }
 }
 
+function fillDatalist(elementId, options) {
+  const list = document.getElementById(elementId);
+  list.innerHTML = '';
+  for (const option of options || []) {
+    const node = document.createElement('option');
+    node.value = option;
+    list.appendChild(node);
+  }
+}
+
+async function refreshModelOptions() {
+  const models = await api('/api/models');
+  fillDatalist('baseCkptOptions', models.ckpt_options || []);
+  fillDatalist('resumeCkptOptions', models.ckpt_options || []);
+  fillDatalist('exportCkptOptions', models.ckpt_options || []);
+  fillDatalist('onnxModelOptions', models.onnx_options || []);
+
+  const base = document.getElementById('baseCkpt');
+  if (!base.value.trim()) {
+    base.value = models.default_base_ckpt || '';
+  }
+
+  const resume = document.getElementById('resumeCkpt');
+  if (!resume.value.trim() && models.default_resume_ckpt) {
+    resume.value = models.default_resume_ckpt;
+  }
+
+  const exportCkpt = document.getElementById('exportCkpt');
+  if (!exportCkpt.value.trim() && models.default_export_ckpt) {
+    exportCkpt.value = models.default_export_ckpt;
+  }
+
+  const testModel = document.getElementById('testModel');
+  if (!testModel.value.trim() && models.default_test_onnx) {
+    testModel.value = models.default_test_onnx;
+  }
+}
+
 async function runAction(path, payload) {
   try {
     await api(path, {
@@ -43,6 +81,7 @@ async function runAction(path, payload) {
       body: JSON.stringify(payload),
     });
     await refreshStatus();
+    await refreshModelOptions();
   } catch (err) {
     alert(err.message);
   }
@@ -213,5 +252,6 @@ document.getElementById('back').onclick = async () => { state = await api('/api/
   await initAudio();
   await fetchNext();
   await refreshStatus();
+  await refreshModelOptions();
   setInterval(refreshStatus, 2000);
 })();
