@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import importlib
+import os
 import shutil
 from pathlib import Path
 
@@ -14,6 +16,7 @@ def check_imports() -> list[str]:
     issues: list[str] = []
 
     try:
+        importlib.import_module("piper.espeakbridge")
         from training.piper_train_bootstrap import validate_runtime_and_training_imports
 
         validate_runtime_and_training_imports()
@@ -21,11 +24,11 @@ def check_imports() -> list[str]:
         LOGGER.info("training module OK: piper.train.vits (via bootstrap)")
     except SystemExit:
         issues.append(
-            "Piper runtime/training modules are not importable via bootstrap (fix: pip install -r requirements/train.txt)"
+            "Piper training module not found (piper.train.vits via bootstrap; fix: pip install -r requirements/train.txt)"
         )
     except Exception:
         issues.append(
-            "Piper runtime/training modules are not importable via bootstrap (fix: pip install -r requirements/train.txt)"
+            "Piper training module not found (piper.train.vits via bootstrap; fix: pip install -r requirements/train.txt)"
         )
 
     try:
@@ -224,11 +227,15 @@ def build_training_preflight_report(
     blocking: list[str] = []
     remediation: list[str] = []
 
-    if any("Piper runtime/training modules are not importable" in issue for issue in issues):
+    if not os.getenv("PIPER_TRAIN_CMD") and any(
+        ("Piper training module not found" in issue)
+        or ("Piper runtime/training modules are not importable" in issue)
+        for issue in issues
+    ):
         blocking.append("Не найден Piper training модуль (piper.train.vits).")
         remediation.append("pip install -r requirements/train.txt")
 
-    if any("PyTorch not importable" in issue for issue in issues):
+    if not os.getenv("PIPER_TRAIN_CMD") and any("PyTorch not importable" in issue for issue in issues):
         blocking.append("PyTorch не импортируется: обучение недоступно.")
         remediation.append("pip install torch torchvision torchaudio")
 
@@ -241,7 +248,7 @@ def build_training_preflight_report(
         blocking.append("Формат metadata/train.csv некорректен.")
         remediation.append("Исправьте metadata/train.csv и запустите doctor ещё раз.")
 
-    if int(stats.get("ok", 0)) == 0:
+    if int(stats.get("rows", 0)) == 0:
         blocking.append("Нет готовых записей для обучения (0 utterances).")
         remediation.append(
             f"python -m app.main doctor --project {project_dir.name} --auto-fix"
@@ -291,7 +298,7 @@ def run_doctor(
         (project_dir / "cache").mkdir(parents=True, exist_ok=True)
 
     issues = check_imports()
-    if auto_fix and any("Piper runtime/training modules are not importable" in issue for issue in issues):
+    if auto_fix and any(("Piper training module not found" in issue) or ("Piper runtime/training modules are not importable" in issue) for issue in issues):
         LOGGER.warning(
             "Auto-fix for training dependencies is not available. Run manually: pip install -r requirements/train.txt"
         )

@@ -91,17 +91,23 @@ def _resolve_resume_flag() -> str:
 
 
 def _assert_training_runtime_preflight(phoneme_type: str) -> None:
-    runtime_and_training_ok = False
+    train_cmd_override = os.getenv("PIPER_TRAIN_CMD")
+    runtime_and_training_ok = bool(train_cmd_override)
 
-    try:
-        from training.piper_train_bootstrap import validate_runtime_and_training_imports
+    if train_cmd_override:
+        LOGGER.info(
+            "[train] preflight skipped piper bootstrap check: custom trainer command configured via PIPER_TRAIN_CMD"
+        )
+    else:
+        try:
+            from training.piper_train_bootstrap import validate_runtime_and_training_imports
 
-        validate_runtime_and_training_imports()
-        runtime_and_training_ok = True
-    except SystemExit:
-        runtime_and_training_ok = False
-    except Exception:
-        runtime_and_training_ok = False
+            validate_runtime_and_training_imports()
+            runtime_and_training_ok = True
+        except SystemExit:
+            runtime_and_training_ok = False
+        except Exception:
+            runtime_and_training_ok = False
 
     phonemizer_backend = _detect_phonemizer_backend(phoneme_type)
 
