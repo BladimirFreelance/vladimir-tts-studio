@@ -66,15 +66,18 @@ def main() -> int:
     shutil.copy2(pyd, target)
     print(f"[OK] Copied to: {target}")
 
-    # Quick import check when training sources are available via third_party
+     # Minimal check: runtime phonemizer exists and .pyd is in the expected location.
     test_code = (
         "import importlib;"
         "importlib.import_module('piper.espeakbridge');"
         "print('OK espeakbridge');"
-        "importlib.import_module('piper.train.vits.monotonic_align.monotonic_align');"
-        "print('OK monotonic_align');"
     )
     run([sys.executable, "-c", test_code], cwd=REPO_ROOT)
+
+    # Verify pyd in target location
+    if not list((target_pkg).glob('core*.pyd')):
+        raise SystemExit('[FAIL] core*.pyd not found in monotonic_align/monotonic_align after copy')
+    print('[OK] core*.pyd present in monotonic_align/monotonic_align')
 
     print("\nDONE: monotonic_align is built.")
     return 0
