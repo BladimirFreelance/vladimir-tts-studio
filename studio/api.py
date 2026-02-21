@@ -6,6 +6,7 @@ import logging
 import threading
 import traceback
 import wave
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
@@ -20,6 +21,33 @@ from training.infer import synth_with_piper
 from training.train import run_training
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _sorted_files(paths: list[Path]) -> list[Path]:
+    return sorted(paths, key=lambda path: path.stat().st_mtime, reverse=True)
+
+
+def discover_checkpoint_models(project_dir: Path) -> list[Path]:
+    runs_dir = project_dir / "runs"
+    if not runs_dir.exists():
+        return []
+    return _sorted_files([path for path in runs_dir.glob("**/*.ckpt") if path.is_file()])
+
+
+def discover_onnx_models(project_dir: Path) -> list[Path]:
+    voices_out_dir = Path("voices_out")
+    if not voices_out_dir.exists():
+        return []
+
+    project_prefix = f"{project_dir.name}-"
+    all_models = [path for path in voices_out_dir.glob("*.onnx") if path.is_file()]
+    project_models = [path for path in all_models if path.name.startswith(project_prefix)]
+    return _sorted_files(project_models or all_models)
+
+
+def build_default_base_ckpt_path(project_dir: Path) -> Path:
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    return Path("data") / "models" / project_dir.name / f"{project_dir.name}-{timestamp}.ckpt"
 
 
 def build_router(project_dir: Path) -> APIRouter:
@@ -126,6 +154,27 @@ def build_router(project_dir: Path) -> APIRouter:
             }
         )
 
+    @router.get("/api/models")
+    def models() -> JSONResponse:
+        ckpts = discover_checkpoint_models(project_dir)
+        onnx = discover_onnx_models(project_dir)
+
+        best_ckpt = next((path for path in ckpts if path.name == "best.ckpt"), None)
+        default_ckpt = best_ckpt or (ckpts[0] if ckpts else None)
+
+        default_onnx = onnx[0] if onnx else None
+
+        return JSONResponse(
+            {
+                "default_base_ckpt": str(build_default_base_ckpt_path(project_dir)),
+                "ckpt_options": [str(path) for path in ckpts],
+                "default_resume_ckpt": str(default_ckpt) if default_ckpt else "",
+                "default_export_ckpt": str(default_ckpt) if default_ckpt else "",
+                "onnx_options": [str(path) for path in onnx],
+                "default_test_onnx": str(default_onnx) if default_onnx else "",
+            }
+        )
+
     @router.get("/api/next")
     def next_line() -> JSONResponse:
         prompts = safe_prompts()
@@ -177,7 +226,8 @@ def build_router(project_dir: Path) -> APIRouter:
     @router.post("/api/train")
     def train(payload: dict[str, Any]) -> JSONResponse:
         epochs = int(payload.get("epochs", 50))
-        base_ckpt = payload.get("base_ckpt") or None
+        base_ckpt_raw = str(payload.get("base_ckpt", "")).strip()
+        base_ckpt = base_ckpt_raw if base_ckpt_raw and Path(base_ckpt_raw).expanduser().exists() else None
         resume_ckpt = payload.get("resume_ckpt") or None
 
         def worker() -> dict[str, Any]:
