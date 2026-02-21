@@ -7,6 +7,7 @@ import importlib
 import shlex
 import subprocess
 import sys
+import shutil
 from pathlib import Path
 
 try:
@@ -283,6 +284,7 @@ def run_training(
     *,
     base_ckpt: str | None = None,
     resume_ckpt: str | Path | None = None,
+    output_ckpt_path: str | Path | None = None,
     force_cpu: bool = False,
     preferred_gpu_name: str | None = None,
 ) -> None:
@@ -393,6 +395,18 @@ def run_training(
     train_env.update(train_env_patch)
     subprocess.run(cmd, check=True, cwd=Path.cwd(), env=train_env)
     ensure_stable_ckpt_aliases(runs_dir)
+
+    if output_ckpt_path:
+        output_ckpt = Path(output_ckpt_path).expanduser()
+        latest_ckpt = max(
+            (path for path in runs_dir.glob("**/*.ckpt") if path.is_file()),
+            key=lambda path: path.stat().st_mtime,
+            default=None,
+        )
+        if latest_ckpt is not None:
+            output_ckpt.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(latest_ckpt, output_ckpt)
+            LOGGER.info("Saved latest checkpoint to %s", output_ckpt)
 
 
 if __name__ == "__main__":

@@ -9,6 +9,7 @@ from studio.api import (
     discover_checkpoint_models,
     discover_onnx_models,
     discover_prompts,
+    normalize_user_path,
 )
 
 
@@ -77,3 +78,9 @@ def test_discover_prompts_prefers_existing_segments_file(tmp_path: Path) -> None
     prompts = discover_prompts(prompts_file, manifest_path)
 
     assert prompts == ["seg_0001|Из prompts"]
+
+
+def test_normalize_user_path_handles_windows_slashes() -> None:
+    path = normalize_user_path(r"data\models\demo\demo.ckpt")
+
+    assert path == Path("data/models/demo/demo.ckpt")

@@ -372,9 +372,32 @@ def test_run_training_adds_resume_ckpt_flag(
 
     run_training(project_dir, epochs=1, resume_ckpt="/tmp/resume.ckpt")
 
-    assert "--trainer.resume_from_checkpoint" in captured["cmd"]
-    idx = captured["cmd"].index("--trainer.resume_from_checkpoint")
+    resume_flags = {"--trainer.resume_from_checkpoint", "--ckpt_path"}
+    flag = next((item for item in captured["cmd"] if item in resume_flags), None)
+    assert flag is not None
+    idx = captured["cmd"].index(flag)
     assert captured["cmd"][idx + 1] == "/tmp/resume.ckpt"
+
+
+def test_run_training_copies_latest_checkpoint_to_output_path(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    def fake_run(*_args, **_kwargs) -> None:
+        ckpt = project_dir / "runs" / "epoch=1-step=10.ckpt"
+        ckpt.parent.mkdir(parents=True, exist_ok=True)
+        ckpt.write_text("trained", encoding="utf-8")
+
+    monkeypatch.setattr("training.train.subprocess.run", fake_run)
+    monkeypatch.setattr("training.train.ensure_stable_ckpt_aliases", lambda *_args, **_kwargs: None)
+
+    output_ckpt = tmp_path / "data" / "models" / "demo" / "demo.ckpt"
+    run_training(project_dir, epochs=1, output_ckpt_path=output_ckpt)
+
+    assert output_ckpt.exists()
+    assert output_ckpt.read_text(encoding="utf-8") == "trained"
 
 
 def test_run_training_updates_stable_aliases_after_success(
