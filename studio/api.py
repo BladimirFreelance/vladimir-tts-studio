@@ -50,6 +50,28 @@ def build_default_base_ckpt_path(project_dir: Path) -> Path:
     return Path("data") / "models" / project_dir.name / f"{project_dir.name}-{timestamp}.ckpt"
 
 
+def discover_prompts(prompts_file: Path, manifest_path: Path) -> list[str]:
+    if prompts_file.exists():
+        prompts = [
+            line.strip()
+            for line in prompts_file.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if prompts:
+            return prompts
+
+    if not manifest_path.exists():
+        return []
+
+    prompts: list[str] = []
+    for audio_path, text in read_manifest(manifest_path):
+        audio_id = Path(audio_path).stem
+        text_clean = text.strip()
+        if audio_id and text_clean:
+            prompts.append(f"{audio_id}|{text_clean}")
+    return prompts
+
+
 def build_router(project_dir: Path) -> APIRouter:
     router = APIRouter()
     prompts_file = project_dir / "prompts" / "segments.txt"
@@ -69,13 +91,7 @@ def build_router(project_dir: Path) -> APIRouter:
     task_lock = threading.Lock()
 
     def safe_prompts() -> list[str]:
-        if not prompts_file.exists():
-            return []
-        return [
-            line.strip()
-            for line in prompts_file.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
+        return discover_prompts(prompts_file, manifest_path)
 
     def load_idx() -> int:
         if not index_path.exists():
