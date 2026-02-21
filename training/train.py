@@ -360,7 +360,7 @@ def run_training(
 
     LOGGER.info("Launching training: %s", " ".join(cmd))
     train_env = os.environ.copy()
-    train_env.update(train_env_patch)
+    train_env["PYTHONPATH"] = str(Path("third_party/piper1-gpl/src").resolve()) + os.pathsep + train_env.get("PYTHONPATH", "")
     subprocess.run(cmd, check=True, cwd=Path.cwd(), env=train_env)
 
 
