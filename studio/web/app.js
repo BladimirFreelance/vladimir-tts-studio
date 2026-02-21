@@ -97,6 +97,10 @@ async function uploadPrepareText(file) {
 }
 
 async function initAudio() {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error('Браузер не поддерживает запись с микрофона (getUserMedia).');
+  }
+
   stream = await navigator.mediaDevices.getUserMedia({ audio: true });
   const ctx = new AudioContext();
   const source = ctx.createMediaStreamSource(stream);
@@ -110,7 +114,27 @@ async function initAudio() {
   }, 120);
 }
 
-function startRecording() {
+async function ensureAudioReady() {
+  if (stream) {
+    return true;
+  }
+
+  try {
+    await initAudio();
+    return true;
+  } catch (err) {
+    const msg = `Не удалось получить доступ к микрофону: ${err.message}`;
+    document.getElementById('status').innerText = msg;
+    alert(`${msg}\n\nПроверьте разрешения браузера для микрофона.`);
+    return false;
+  }
+}
+
+async function startRecording() {
+  if (!(await ensureAudioReady())) {
+    return;
+  }
+
   chunks = [];
   recordedBlob = null;
   mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
@@ -249,7 +273,12 @@ document.getElementById('bad').onclick = async () => {
 document.getElementById('back').onclick = async () => { state = await api('/api/back',{method:'POST'}); renderPrompt(); await refreshStatus(); };
 
 (async () => {
-  await initAudio();
+  try {
+    await initAudio();
+  } catch (err) {
+    document.getElementById('status').innerText = `Микрофон не инициализирован: ${err.message}`;
+  }
+
   await fetchNext();
   await refreshStatus();
   await refreshModelOptions();
