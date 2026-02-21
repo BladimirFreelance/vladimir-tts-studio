@@ -8,6 +8,7 @@ from studio.api import (
     build_default_base_ckpt_path,
     discover_checkpoint_models,
     discover_onnx_models,
+    discover_prompts,
 )
 
 
@@ -47,3 +48,32 @@ def test_build_default_base_ckpt_path_uses_standard_location(tmp_path: Path) -> 
     assert result.parent == Path("data") / "models" / "my_project"
     assert result.name.startswith("my_project-")
     assert result.suffix == ".ckpt"
+
+
+def test_discover_prompts_uses_manifest_when_segments_missing(tmp_path: Path) -> None:
+    prompts_file = tmp_path / "prompts" / "segments.txt"
+    manifest_path = tmp_path / "metadata" / "train.csv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(
+        "recordings/wav_22050/demo_0001.wav|Пример\n"
+        "recordings/wav_22050/demo_0002|Вторая строка\n",
+        encoding="utf-8",
+    )
+
+    prompts = discover_prompts(prompts_file, manifest_path)
+
+    assert prompts == ["demo_0001|Пример", "demo_0002|Вторая строка"]
+
+
+def test_discover_prompts_prefers_existing_segments_file(tmp_path: Path) -> None:
+    prompts_file = tmp_path / "prompts" / "segments.txt"
+    prompts_file.parent.mkdir(parents=True, exist_ok=True)
+    prompts_file.write_text("seg_0001|Из prompts\n", encoding="utf-8")
+
+    manifest_path = tmp_path / "metadata" / "train.csv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text("recordings/x.wav|Из manifest\n", encoding="utf-8")
+
+    prompts = discover_prompts(prompts_file, manifest_path)
+
+    assert prompts == ["seg_0001|Из prompts"]
