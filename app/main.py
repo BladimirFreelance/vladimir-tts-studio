@@ -63,6 +63,11 @@ def build_parser() -> argparse.ArgumentParser:
     s_train = sub.add_parser("train")
     s_train.add_argument("--project")
     s_train.add_argument(
+        "--resume-ckpt",
+        dest="resume_ckpt",
+        help="Путь к checkpoint для продолжения обучения (resume)",
+    )
+    s_train.add_argument(
         "--model.vocoder_warmstart_ckpt",
         dest="vocoder_warmstart_ckpt",
         help=(
@@ -211,6 +216,7 @@ def main() -> None:
             epochs=args.epochs,
             dry_run=args.dry_run,
             vocoder_warmstart_ckpt=args.vocoder_warmstart_ckpt,
+            resume_ckpt=args.resume_ckpt,
             batch_size=args.batch_size,
             learning_rate=args.learning_rate,
             audio_dir=args.audio_dir,

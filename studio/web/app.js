@@ -178,6 +178,7 @@ document.getElementById('prepareTextFile').onchange = async (event) => {
 document.getElementById('trainBtn').onclick = () => runAction('/api/train', {
   epochs: Number(document.getElementById('epochs').value),
   base_ckpt: document.getElementById('baseCkpt').value,
+  resume_ckpt: document.getElementById('resumeCkpt').value,
 });
 document.getElementById('exportBtn').onclick = () => runAction('/api/export', { ckpt: document.getElementById('exportCkpt').value });
 document.getElementById('testBtn').onclick = () => runAction('/api/test', {

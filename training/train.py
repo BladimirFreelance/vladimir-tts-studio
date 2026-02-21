@@ -15,6 +15,7 @@ except ImportError:  # pragma: no cover - optional dependency for pre-flight dia
     torch = None
 
 from dataset.manifest import read_manifest
+from training.checkpoints import ensure_stable_ckpt_aliases
 from utils import load_yaml, write_json
 
 LOGGER = logging.getLogger(__name__)
@@ -69,6 +70,24 @@ def _detect_phonemizer_backend(phoneme_type: str) -> str:
         return "missing (runtime piper-tts is not available)"
 
 
+
+def _resolve_resume_flag() -> str:
+    train_main = (
+        Path(__file__).resolve().parent.parent
+        / "third_party"
+        / "piper1-gpl"
+        / "src"
+        / "piper"
+        / "train"
+        / "__main__.py"
+    )
+    if train_main.exists():
+        source = train_main.read_text(encoding="utf-8")
+        if "resume_from_checkpoint" in source:
+            return "--trainer.resume_from_checkpoint"
+        if "--ckpt_path" in source or "ckpt_path" in source:
+            return "--ckpt_path"
+    return "--trainer.resume_from_checkpoint"
 
 
 def _assert_training_runtime_preflight(phoneme_type: str) -> None:
@@ -257,6 +276,7 @@ def run_training(
     audio_dir: Path | None = None,
     *,
     base_ckpt: str | None = None,
+    resume_ckpt: str | Path | None = None,
     force_cpu: bool = False,
     preferred_gpu_name: str | None = None,
 ) -> None:
@@ -340,6 +360,9 @@ def run_training(
     if selected_ckpt:
         cmd += ["--model.vocoder_warmstart_ckpt", selected_ckpt]
 
+    if resume_ckpt:
+        cmd += [_resolve_resume_flag(), str(resume_ckpt)]
+
     command_path = runs_dir / "run_command.txt"
     command_path.write_text(
         " ".join(shlex.quote(part) for part in cmd), encoding="utf-8"
@@ -363,6 +386,7 @@ def run_training(
     train_env = os.environ.copy()
     train_env.update(train_env_patch)
     subprocess.run(cmd, check=True, cwd=Path.cwd(), env=train_env)
+    ensure_stable_ckpt_aliases(runs_dir)
 
 
 if __name__ == "__main__":

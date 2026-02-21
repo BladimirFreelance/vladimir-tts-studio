@@ -178,10 +178,16 @@ def build_router(project_dir: Path) -> APIRouter:
     def train(payload: dict[str, Any]) -> JSONResponse:
         epochs = int(payload.get("epochs", 50))
         base_ckpt = payload.get("base_ckpt") or None
+        resume_ckpt = payload.get("resume_ckpt") or None
 
         def worker() -> dict[str, Any]:
-            run_training(project_dir, epochs=epochs, base_ckpt=base_ckpt)
-            return {"epochs": epochs, "base_ckpt": base_ckpt}
+            run_training(
+                project_dir,
+                epochs=epochs,
+                base_ckpt=base_ckpt,
+                resume_ckpt=resume_ckpt,
+            )
+            return {"epochs": epochs, "base_ckpt": base_ckpt, "resume_ckpt": resume_ckpt}
 
         if not run_task("train", worker):
             raise HTTPException(status_code=409, detail="Уже выполняется другая задача")

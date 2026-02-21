@@ -58,3 +58,9 @@ def test_prepare_finds_text_file_in_priority_order(tmp_path) -> None:
     found = _find_default_text_file(tmp_path)
 
     assert found == preferred
+
+
+def test_train_parser_accepts_resume_ckpt() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["train", "--resume-ckpt", "runs/best.ckpt"])
+    assert args.resume_ckpt == "runs/best.ckpt"
