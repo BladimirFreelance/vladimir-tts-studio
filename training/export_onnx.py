@@ -4,26 +4,18 @@ import json
 import subprocess
 import sys
 
+from training.checkpoints import find_best_ckpt
 from training.utils import ensure_espeakbridge_import
 from pathlib import Path
-
-
-def find_latest_ckpt(project_dir: Path) -> Path:
-    ckpts = sorted(
-        project_dir.glob("runs/**/*.ckpt"),
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    if not ckpts:
-        raise FileNotFoundError("No ckpt found in project runs folder")
-    return ckpts[0]
 
 
 def export_onnx(
     project: str, project_dir: Path, ckpt: Path | None = None
 ) -> tuple[Path, Path]:
     ensure_espeakbridge_import()
-    chosen = ckpt or find_latest_ckpt(project_dir)
+    runs_dir = project_dir / "runs"
+    best_alias = runs_dir / "best.ckpt"
+    chosen = ckpt or (best_alias if best_alias.exists() else find_best_ckpt(runs_dir))
     out_dir = Path("voices_out")
     out_dir.mkdir(parents=True, exist_ok=True)
     onnx_path = out_dir / f"ru_RU-{project}-medium.onnx"

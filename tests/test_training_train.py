@@ -51,10 +51,12 @@ def _stub_dependencies(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda *_args, **_kwargs: None,
     )
 
+    original_import_module = train_module.importlib.import_module
+
     def fake_import_module(name: str):
         if name == "piper.espeakbridge":
             return object()
-        raise ImportError(name)
+        return original_import_module(name)
 
     monkeypatch.setattr("training.train.importlib.import_module", fake_import_module)
 
@@ -348,3 +350,47 @@ def test_run_training_dry_run_skips_subprocess(
     run_training(project_dir, epochs=1, dry_run=True)
 
     assert called["subprocess"] is False
+
+
+def test_run_training_adds_resume_ckpt_flag(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    captured: dict[str, list[str]] = {}
+
+    monkeypatch.setattr(
+        "training.train.resolve_train_base_command",
+        lambda: ["python", "-m", "training.piper_train_bootstrap"],
+    )
+    monkeypatch.setattr(
+        "training.train.subprocess.run",
+        lambda cmd, **_kwargs: captured.setdefault("cmd", cmd),
+    )
+    monkeypatch.setattr("training.train.ensure_stable_ckpt_aliases", lambda *_args, **_kwargs: None)
+
+    run_training(project_dir, epochs=1, resume_ckpt="/tmp/resume.ckpt")
+
+    assert "--trainer.resume_from_checkpoint" in captured["cmd"]
+    idx = captured["cmd"].index("--trainer.resume_from_checkpoint")
+    assert captured["cmd"][idx + 1] == "/tmp/resume.ckpt"
+
+
+def test_run_training_updates_stable_aliases_after_success(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _stub_dependencies(monkeypatch)
+    project_dir = _prepare_project(tmp_path)
+
+    captured: dict[str, Path] = {}
+
+    monkeypatch.setattr("training.train.subprocess.run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "training.train.ensure_stable_ckpt_aliases",
+        lambda runs_dir: captured.setdefault("runs_dir", runs_dir),
+    )
+
+    run_training(project_dir, epochs=1)
+
+    assert captured["runs_dir"] == project_dir / "runs"
