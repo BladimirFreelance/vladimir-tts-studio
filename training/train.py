@@ -328,6 +328,7 @@ def run_training(
     cmd += ["--data.espeak_voice", cfg["training"]["espeak_voice"]]
     resolved_batch_size = batch_size or int(cfg["training"]["batch_size"])
     cmd += ["--data.batch_size", str(resolved_batch_size)]
+    cmd += ["--data.num_workers", "0"]
     resolved_learning_rate = learning_rate or float(cfg["training"]["learning_rate"])
     cmd += ["--model.learning_rate", str(resolved_learning_rate)]
 
@@ -360,7 +361,7 @@ def run_training(
 
     LOGGER.info("Launching training: %s", " ".join(cmd))
     train_env = os.environ.copy()
-    train_env["PYTHONPATH"] = str(Path("third_party/piper1-gpl/src").resolve()) + os.pathsep + train_env.get("PYTHONPATH", "")
+    train_env.update(train_env_patch)
     subprocess.run(cmd, check=True, cwd=Path.cwd(), env=train_env)
 
 
