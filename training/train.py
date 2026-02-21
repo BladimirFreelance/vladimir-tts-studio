@@ -83,11 +83,11 @@ def _resolve_resume_flag() -> str:
     )
     if train_main.exists():
         source = train_main.read_text(encoding="utf-8")
-        if "resume_from_checkpoint" in source:
-            return "--trainer.resume_from_checkpoint"
         if "--ckpt_path" in source or "ckpt_path" in source:
             return "--ckpt_path"
-    return "--trainer.resume_from_checkpoint"
+        if "resume_from_checkpoint" in source:
+            return "--trainer.resume_from_checkpoint"
+    return "--ckpt_path"
 
 
 def _assert_training_runtime_preflight(phoneme_type: str) -> None:
