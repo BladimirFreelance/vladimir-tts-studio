@@ -4,7 +4,7 @@
 
 # Запуск UI если все настроено:
 ```bash
-python -m app.main record --project vladimir-tts-studio --port 8765
+python -m app.main record --project ddn_vladimir --port 8765
 ```
 > python -m app.main record --project  <Имя вашего проекта> --port 8765
 
@@ -97,9 +97,9 @@ python -m app.main train  --project sandbox_test --epochs 1 --check
 python -m app.main train  --project sandbox_test --epochs 1
 ```
 ```bash
-python -m app.main doctor --project vladimir-tts-studio --auto-fix
-python -m app.main train  --project vladimir-tts-studio --epochs 1 --check
-python -m app.main train  --project vladimir-tts-studio --epochs 1
+python -m app.main doctor --ddn_vladimir --auto-fix
+python -m app.main train  --ddn_vladimir --epochs 1 --check
+python -m app.main train  --ddn_vladimir --epochs 1
 ```
 
 Проект ориентирован на полностью локальный сценарий без обязательных облачных сервисов. Основная идея — дать воспроизводимый и прозрачный пайплайн, в котором все этапы от исходного текста до итоговой модели находятся под контролем пользователя. Внутри репозитория есть CLI-приложение, инструменты подготовки датасета, проверка качества манифеста и аудио, интеграция с обучающим контуром Piper и отдельный веб-интерфейс студии записи.
