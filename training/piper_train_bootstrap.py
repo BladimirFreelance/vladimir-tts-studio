@@ -62,8 +62,39 @@ def validate_runtime_and_training_imports() -> None:
 
 
 def main() -> None:
-    extend_piper_namespace()
-    runpy.run_module("piper.train", run_name="__main__")
+    # 1) Runtime preflight
+    validate_runtime_and_training_imports()
+    importlib.import_module("piper.espeakbridge")  # ensure wheel phonemizer is loaded
+
+    repo_root = Path(__file__).resolve().parent.parent
+    src_root = (repo_root / "third_party" / "piper1-gpl" / "src").resolve()
+    train_dir = (src_root / "piper" / "train").resolve()
+    train_main = train_dir / "__main__.py"
+    train_init = train_dir / "__init__.py"
+
+    if not train_main.exists():
+        raise RuntimeError(f"Training entry not found: {train_main}")
+
+    # 2) Make third_party visible for internal imports (keep low priority for runtime piper)
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.append(src_root_str)
+
+    # 3) Force-register piper.train package from third_party (WITHOUT replacing wheel `piper`)
+    for m in list(sys.modules.keys()):
+        if m == "piper.train" or m.startswith("piper.train."):
+            sys.modules.pop(m, None)
+
+    import types
+
+    pkg = types.ModuleType("piper.train")
+    pkg.__file__ = str(train_init)
+    pkg.__path__ = [str(train_dir)]
+    pkg.__package__ = "piper.train"
+    sys.modules["piper.train"] = pkg
+
+    # 4) Run third_party piper.train.__main__ as module (relative imports will work)
+    runpy.run_module("piper.train.__main__", run_name="__main__")
 
 
 if __name__ == "__main__":
