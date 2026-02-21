@@ -24,7 +24,7 @@ def ensure_espeakbridge_import() -> bool:
 
     windows_hint = (
         " На Windows установите training-зависимости через "
-        "`python scripts/00_setup_env.py --require-piper-training`."
+        "`pip install -r requirements/train.txt`."
         if platform.system().lower() == "windows"
         else ""
     )

@@ -96,7 +96,7 @@ def _assert_training_runtime_preflight(phoneme_type: str) -> None:
             "- Не удалось проверить piper.espeakbridge и piper.train.vits через training bootstrap:\n"
             "Как починить:\n"
             "  * python -m pip install piper-tts==1.4.1\n"
-            "  * python scripts/00_setup_env.py --require-piper-training"
+            "  * pip install -r requirements/train.txt"
         )
 
 
@@ -292,7 +292,7 @@ def run_training(
     if existing <= 0:
         raise RuntimeError(
             "Обнаружено 0 utterances. Проверьте запись в студии и что WAV-файлы существуют в recordings/wav_22050. "
-            f"Запустите scripts/06_doctor.py --project {project_dir.name} --auto-fix для диагностики."
+            f"Запустите python -m app.main doctor --project {project_dir.name} --auto-fix для диагностики."
         )
 
     detected_sample_rate = _detect_sample_rate(

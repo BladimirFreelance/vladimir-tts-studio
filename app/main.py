@@ -37,7 +37,7 @@ def ensure_project_venv() -> None:
         "[ERROR] Вы сейчас запускаете проект не из .venv. "
         f"Текущий интерпретатор: {current_python}\n"
         f"Ожидаемое окружение: {project_venv.resolve()}\n"
-        "Выполните: . .\\scripts\\00_bootstrap.ps1"
+        "Запустите команду через Python из .venv проекта (например: .venv/Scripts/python.exe -m app.main --help)."
     )
     raise SystemExit(1)
 
