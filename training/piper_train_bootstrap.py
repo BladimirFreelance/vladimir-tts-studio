@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import runpy
 from pathlib import Path
+import sys
 
 
 def _repo_root() -> Path:
@@ -11,43 +12,53 @@ def _repo_root() -> Path:
 
 def extend_piper_namespace() -> None:
     """
-    Keep runtime piper (wheel, gives piper.espeakbridge) but extend training subpackages
-    by adding third_party sources into piper.train.__path__.
+    Make `piper.train.*` importable from third_party while keeping runtime `piper`
+    from the piper-tts wheel (so piper.espeakbridge stays available).
+
+    Strategy:
+    1) Import runtime `piper` first (wheel).
+    2) Append third_party/src/piper to piper.__path__ so subpackages like piper.train are discoverable.
+    3) Also append third_party/src to sys.path (low priority) for any absolute imports inside training.
     """
-    import piper  # runtime from wheel
+    repo_root = Path(__file__).resolve().parent.parent
+    src_root = repo_root / "third_party" / "piper1-gpl" / "src"
+    src_piper = src_root / "piper"
 
-    repo_root = _repo_root()
-    src_piper = repo_root / "third_party" / "piper1-gpl" / "src" / "piper"
-    src_train = src_piper / "train"
+    if not src_piper.exists():
+        raise RuntimeError(f"Training sources not found: {src_piper}")
 
-    if not src_train.exists():
-        raise RuntimeError(f"Training sources not found: {src_train}")
+    # 1) Load runtime wheel first
+    import piper  # noqa: WPS433
 
-    # Optional: let `piper` namespace see src/piper too
-    p = str(src_piper)
-    if p not in list(getattr(piper, "__path__", [])):
-        piper.__path__.append(p)
+    # 2) Extend piper package search path
+    src_piper_str = str(src_piper.resolve())
+    if hasattr(piper, "__path__"):
+        if src_piper_str not in list(piper.__path__):
+            piper.__path__.append(src_piper_str)
 
-    # Critical: piper-tts already provides piper.train without vits.
-    # We must extend piper.train.__path__ to include third_party training sources.
-    import piper.train  # comes from wheel
-    t = str(src_train)
-    if t not in list(getattr(piper.train, "__path__", [])):
-        piper.train.__path__.append(t)
-
-    importlib.invalidate_caches()
-
+    # 3) Keep src_root available (low priority)
+    src_root_str = str(src_root.resolve())
+    if src_root_str not in sys.path:
+        sys.path.append(src_root_str)
 
 def validate_runtime_and_training_imports() -> None:
-    import importlib.util as u
+    """
+    Preflight check:
+    - runtime phonemizer must exist (wheel: piper.espeakbridge)
+    - training sources must exist in third_party (piper1-gpl)
+    We do NOT import piper.train.vits directly because runtime `piper` comes from wheel
+    and is not a namespace package.
+    """
+    import importlib
 
-    if u.find_spec("piper.espeakbridge") is None and u.find_spec("espeakbridge") is None:
-        raise RuntimeError("Phonemizer missing: install piper-tts runtime wheel.")
+    # runtime phonemizer must exist (wheel)
+    importlib.import_module("piper.espeakbridge")
 
-    extend_piper_namespace()
-
-    if u.find_spec("piper.train.vits") is None:
-        raise RuntimeError("Training missing: piper.train.vits not importable (check third_party clone).")
+    # training sources must exist on disk
+    repo_root = Path(__file__).resolve().parent.parent
+    train_dir = repo_root / "third_party" / "piper1-gpl" / "src" / "piper" / "train" / "vits"
+    if not train_dir.exists():
+        raise RuntimeError(f"Training missing: sources not found: {train_dir}")
 
 
 def main() -> None:
