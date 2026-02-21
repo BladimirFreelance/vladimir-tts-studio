@@ -23,6 +23,10 @@ from training.train import run_training
 LOGGER = logging.getLogger(__name__)
 
 
+def normalize_user_path(raw_path: str) -> Path:
+    return Path(raw_path.replace("\\", "/")).expanduser()
+
+
 def _sorted_files(paths: list[Path]) -> list[Path]:
     return sorted(paths, key=lambda path: path.stat().st_mtime, reverse=True)
 
@@ -243,7 +247,14 @@ def build_router(project_dir: Path) -> APIRouter:
     def train(payload: dict[str, Any]) -> JSONResponse:
         epochs = int(payload.get("epochs", 50))
         base_ckpt_raw = str(payload.get("base_ckpt", "")).strip()
-        base_ckpt = base_ckpt_raw if base_ckpt_raw and Path(base_ckpt_raw).expanduser().exists() else None
+        base_ckpt = None
+        output_ckpt_path = None
+        if base_ckpt_raw:
+            resolved_base_ckpt = normalize_user_path(base_ckpt_raw)
+            if resolved_base_ckpt.exists():
+                base_ckpt = str(resolved_base_ckpt)
+            else:
+                output_ckpt_path = str(resolved_base_ckpt)
         resume_ckpt = payload.get("resume_ckpt") or None
 
         def worker() -> dict[str, Any]:
@@ -252,8 +263,14 @@ def build_router(project_dir: Path) -> APIRouter:
                 epochs=epochs,
                 base_ckpt=base_ckpt,
                 resume_ckpt=resume_ckpt,
+                output_ckpt_path=output_ckpt_path,
             )
-            return {"epochs": epochs, "base_ckpt": base_ckpt, "resume_ckpt": resume_ckpt}
+            return {
+                "epochs": epochs,
+                "base_ckpt": base_ckpt,
+                "resume_ckpt": resume_ckpt,
+                "output_ckpt_path": output_ckpt_path,
+            }
 
         if not run_task("train", worker):
             raise HTTPException(status_code=409, detail="Уже выполняется другая задача")
