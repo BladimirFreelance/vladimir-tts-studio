@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from training.checkpoints import (
@@ -16,6 +17,9 @@ def test_find_latest_ckpt_prefers_newest_mtime(tmp_path: Path) -> None:
     new = runs / "epoch=1.ckpt"
     old.write_text("old", encoding="utf-8")
     new.write_text("new", encoding="utf-8")
+
+    os.utime(old, (1_700_000_000, 1_700_000_000))
+    os.utime(new, (1_800_000_000, 1_800_000_000))
 
     assert find_latest_ckpt(runs) == new
 
