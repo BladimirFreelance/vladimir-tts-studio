@@ -30,9 +30,26 @@ async function refreshStatus() {
     document.getElementById('status').innerText = `Подготовлен: ${status.prepared ? 'да' : 'нет'} | Записано: ${status.recorded}/${status.total} | Задача: ${status.task.name || '-'} (${status.task.status})`;
     const result = status.task.error || JSON.stringify(status.task.last_result || {}, null, 2);
     document.getElementById('taskResult').innerText = result;
+    updatePrepareWarning(status);
   } catch (err) {
     document.getElementById('status').innerText = `Ошибка обновления статуса: ${err.message}`;
   }
+}
+
+
+function updatePrepareWarning(status) {
+  const warning = document.getElementById('prepareWarning');
+  if (status.has_manifest || status.has_recordings) {
+    warning.innerText = 'В проекте уже есть train.csv или WAV. Overwrite перезапишет train.csv и может привести к перезаписи WAV при записи. Рекомендуется Append.';
+  } else {
+    warning.innerText = '';
+  }
+}
+
+function toggleOverwriteControls() {
+  const mode = document.getElementById('prepareMode').value;
+  const wrap = document.getElementById('overwriteConfirmWrap');
+  wrap.hidden = mode !== 'overwrite';
 }
 
 function fillDatalist(elementId, options) {
@@ -223,7 +240,25 @@ function encodeWAV(samples, sampleRate) {
   return buffer;
 }
 
-document.getElementById('prepareBtn').onclick = () => runAction('/api/prepare', { text_path: document.getElementById('prepareTextPath').value });
+document.getElementById('prepareBtn').onclick = async () => {
+  const mode = document.getElementById('prepareMode').value;
+  const confirm = document.getElementById('overwriteConfirm').value.trim();
+  if (mode === 'overwrite' && confirm !== 'OVERWRITE') {
+    alert('Для режима Overwrite введите OVERWRITE в поле подтверждения.');
+    return;
+  }
+  if (mode === 'overwrite' && !window.confirm('Вы уверены? Overwrite перезапишет train.csv.')) {
+    return;
+  }
+  await runAction('/api/prepare', {
+    text_path: document.getElementById('prepareTextPath').value,
+    mode,
+    confirm,
+  });
+};
+document.getElementById('prepareMode').onchange = toggleOverwriteControls;
+toggleOverwriteControls();
+
 document.getElementById('pickTextFileBtn').onclick = () => document.getElementById('prepareTextFile').click();
 document.getElementById('prepareTextFile').onchange = async (event) => {
   const [file] = event.target.files || [];
@@ -284,3 +319,4 @@ document.getElementById('back').onclick = async () => { state = await api('/api/
   await refreshModelOptions();
   setInterval(refreshStatus, 2000);
 })();
+

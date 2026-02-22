@@ -171,6 +171,8 @@ def build_router(project_dir: Path) -> APIRouter:
                 "recorded": idx,
                 "total": len(prompts),
                 "task": task,
+                "has_manifest": manifest_path.exists(),
+                "has_recordings": any(recordings_dir.glob("*.wav")),
             }
         )
 
@@ -216,10 +218,30 @@ def build_router(project_dir: Path) -> APIRouter:
         if not text_path.exists():
             raise HTTPException(status_code=400, detail=f"Файл не найден: {text_path}")
 
+        mode = str(payload.get("mode", "append")).strip().lower() or "append"
+        if mode not in {"append", "overwrite"}:
+            raise HTTPException(status_code=400, detail="mode must be append or overwrite")
+
+        confirm_token = str(payload.get("confirm", "")).strip()
+        overwrite_confirmed = mode == "append" or confirm_token == "OVERWRITE"
+        if mode == "overwrite" and not overwrite_confirmed:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Overwrite mode requires confirmation. "
+                    "Введите OVERWRITE в поле подтверждения."
+                ),
+            )
+
         def worker() -> dict[str, Any]:
-            prepare_dataset(text_path, project_dir.name)
+            prepare_dataset(
+                text_path,
+                project_dir.name,
+                mode=mode,
+                overwrite_confirmed=overwrite_confirmed,
+            )
             code = run_doctor(project_dir, auto_fix=False, require_audio=False)
-            return {"doctor_code": code}
+            return {"doctor_code": code, "mode": mode}
 
         if not run_task("prepare", worker):
             raise HTTPException(status_code=409, detail="Уже выполняется другая задача")
