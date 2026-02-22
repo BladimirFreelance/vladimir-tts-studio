@@ -64,3 +64,17 @@ def test_train_parser_accepts_resume_ckpt() -> None:
     parser = build_parser()
     args = parser.parse_args(["train", "--resume-ckpt", "runs/best.ckpt"])
     assert args.resume_ckpt == "runs/best.ckpt"
+
+
+def test_prepare_parser_defaults_to_append_mode() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["prepare"])
+    assert args.overwrite is False
+    assert args.append is False
+
+
+def test_prepare_parser_accepts_overwrite_confirmation_flags() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["prepare", "--overwrite", "--force"])
+    assert args.overwrite is True
+    assert args.force is True

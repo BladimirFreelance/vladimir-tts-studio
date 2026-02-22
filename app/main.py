@@ -49,6 +49,11 @@ def build_parser() -> argparse.ArgumentParser:
     s_prepare = sub.add_parser("prepare")
     s_prepare.add_argument("--text")
     s_prepare.add_argument("--project")
+    mode_group = s_prepare.add_mutually_exclusive_group()
+    mode_group.add_argument("--append", action="store_true", help="Безопасный режим: добавить новые записи в конец train.csv (по умолчанию)")
+    mode_group.add_argument("--overwrite", action="store_true", help="Опасный режим: перезаписать train.csv")
+    s_prepare.add_argument("--force", action="store_true", help="Подтверждение для --overwrite")
+    s_prepare.add_argument("--confirm", help="Явное подтверждение для --overwrite (ожидается OVERWRITE)")
 
     s_record = sub.add_parser(
         "record",
@@ -188,8 +193,20 @@ def main() -> None:
                 "Добавьте .txt/.csv/.tsv в data/input_texts и запустите prepare снова."
             )
 
+        mode = "overwrite" if args.overwrite else "append"
+        overwrite_confirmed = mode == "append" or args.force or args.confirm == "OVERWRITE"
+        if mode == "overwrite" and not overwrite_confirmed:
+            raise ValueError(
+                "Для --overwrite требуется подтверждение: --force или --confirm OVERWRITE"
+            )
+
         logging.info("Using text file for prepare: %s", text_file)
-        prepare_dataset(text_file, args.project)
+        prepare_dataset(
+            text_file,
+            args.project,
+            mode=mode,
+            overwrite_confirmed=overwrite_confirmed,
+        )
         code = run_doctor(
             Path("data/projects") / args.project, auto_fix=False, require_audio=False
         )

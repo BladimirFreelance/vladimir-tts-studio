@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import csv
+import re
 from pathlib import Path
 
 from dataset.audio_tools import convert_wav, inspect_wav
 from dataset.manifest import write_manifest
-from dataset.segmenter import indexed_segments, split_to_segments
+from dataset.segmenter import split_to_segments
 from dataset.text_cleaner import normalize_text
 from utils import load_yaml
 
@@ -80,12 +81,53 @@ def _extract_text_entries(text_file: Path) -> list[str]:
     return entries
 
 
-def prepare_dataset(text_file: Path, project: str) -> None:
+def parse_existing_index(manifest_path: Path, project_name: str) -> int:
+    if not manifest_path.exists():
+        return 0
+
+    pattern = re.compile(rf"^{re.escape(project_name)}_(\d{{5}})\.wav$", re.IGNORECASE)
+    max_index = 0
+    with manifest_path.open("r", encoding="utf-8") as manifest:
+        for line in manifest:
+            row = line.strip()
+            if not row or "|" not in row:
+                continue
+            wav_name, _text = row.split("|", maxsplit=1)
+            match = pattern.match(Path(wav_name.strip()).name)
+            if not match:
+                continue
+            max_index = max(max_index, int(match.group(1)))
+    return max_index
+
+
+def generate_next_wav_name(project_name: str, index: int) -> str:
+    return f"{project_name}_{index:05d}.wav"
+
+
+def _normalize_manifest_text(text: str) -> str:
+    return " ".join(text.split()).strip()
+
+
+def prepare_dataset(
+    text_file: Path,
+    project: str,
+    mode: str = "append",
+    overwrite_confirmed: bool = False,
+) -> None:
     text_file = text_file.expanduser()
     if not text_file.exists() or not text_file.is_file():
         raise FileNotFoundError(
             f"Текстовый файл не найден: {text_file}. "
             "Укажите существующий путь через --text."
+        )
+
+    normalized_mode = mode.lower()
+    if normalized_mode not in {"append", "overwrite"}:
+        raise ValueError("Unsupported prepare mode. Use 'append' or 'overwrite'.")
+    if normalized_mode == "overwrite" and not overwrite_confirmed:
+        raise ValueError(
+            "Overwrite mode requires explicit confirmation. "
+            "Use --overwrite with --force or --confirm OVERWRITE."
         )
 
     cfg = load_yaml(Path("configs/train_default.yaml"))
@@ -108,21 +150,50 @@ def prepare_dataset(text_file: Path, project: str) -> None:
             )
         )
 
-    indexed = indexed_segments(all_segments, prefix=project)
-
     prompts_path = project_dir / "prompts" / "segments.txt"
+    manifest_path = project_dir / "metadata" / "train.csv"
+
+    existing_rows: list[tuple[str, str]] = []
+    existing_prompts: list[tuple[str, str]] = []
+    if normalized_mode == "append" and manifest_path.exists():
+        with manifest_path.open("r", encoding="utf-8") as manifest:
+            for line in manifest:
+                row = line.strip()
+                if not row or "|" not in row:
+                    continue
+                wav_name, text = row.split("|", maxsplit=1)
+                wav_leaf = Path(wav_name.strip()).name
+                clean_text = _normalize_manifest_text(text)
+                if not wav_leaf or not clean_text:
+                    continue
+                existing_rows.append((wav_leaf, clean_text))
+                existing_prompts.append((Path(wav_leaf).stem, clean_text))
+
+    start_index = (
+        parse_existing_index(manifest_path, project) + 1 if normalized_mode == "append" else 1
+    )
+    indexed = [
+        (f"{project}_{idx:05d}", text)
+        for idx, text in enumerate(all_segments, start=start_index)
+    ]
+
+    prompt_rows = existing_prompts + indexed if normalized_mode == "append" else indexed
     prompts_path.write_text(
-        "\n".join(f"{audio_id}|{text}" for audio_id, text in indexed) + "\n",
+        "\n".join(f"{audio_id}|{text}" for audio_id, text in prompt_rows) + "\n",
         encoding="utf-8",
     )
     test20 = project_dir / "prompts" / "test_script_20.txt"
     test20.write_text(
-        "\n".join(text for _id, text in indexed[:20]) + "\n", encoding="utf-8"
+        "\n".join(text for _id, text in prompt_rows[:20]) + "\n", encoding="utf-8"
     )
 
     _resample_existing_audio(
         project_dir, [audio_id for audio_id, _text in indexed], sample_rate=22050
     )
 
-    manifest_rows = [(Path(audio_id).name + ".wav", text) for audio_id, text in indexed]
-    write_manifest(project_dir / "metadata" / "train.csv", manifest_rows)
+    new_rows = [
+        (generate_next_wav_name(project, idx), _normalize_manifest_text(text))
+        for idx, text in enumerate(all_segments, start=start_index)
+    ]
+    manifest_rows = existing_rows + new_rows if normalized_mode == "append" else new_rows
+    write_manifest(manifest_path, manifest_rows)
