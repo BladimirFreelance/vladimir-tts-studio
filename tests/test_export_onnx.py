@@ -20,7 +20,7 @@ def test_export_prefers_best_alias_when_ckpt_not_provided(monkeypatch, tmp_path:
     monkeypatch.setattr("training.export_onnx.ensure_espeakbridge_import", lambda: None)
     monkeypatch.setattr(
         "training.export_onnx.build_onnx_config",
-        lambda _project_dir: {
+        lambda _project_dir, _project_name: {
             "num_symbols": 10,
             "num_speakers": 1,
             "phoneme_id_map": {"a": [1]},
@@ -129,3 +129,54 @@ def test_export_smoke_test_failure_is_warning(monkeypatch, tmp_path: Path) -> No
     _, json_path = export_onnx("demo", project_dir, ckpt=ckpt)
     payload = json.loads(json_path.read_text(encoding="utf-8"))
     assert "warning" in payload["status"]["smoke_test"]
+
+
+def test_export_writes_json_before_smoke_test(monkeypatch, tmp_path: Path) -> None:
+    project = "ddn_vladimir"
+    project_dir = tmp_path / "project"
+    runs = project_dir / "runs"
+    runs.mkdir(parents=True)
+    ckpt = runs / "best.ckpt"
+    ckpt.write_text("x", encoding="utf-8")
+
+    models_dir = tmp_path / "models"
+    models_dir.mkdir()
+    (models_dir / "ru_RU-dmitri-medium.onnx.json").write_text(
+        json.dumps(
+            {
+                "num_symbols": 12,
+                "num_speakers": 1,
+                "phoneme_id_map": {"a": [1]},
+                "dataset": "dmitri",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr("training.export_onnx.ensure_espeakbridge_import", lambda: None)
+    monkeypatch.chdir(tmp_path)
+
+    events: list[str] = []
+
+    def fake_run(cmd: list[str], check: bool) -> None:
+        if "training.piper_export_onnx_compat" in cmd:
+            events.append("export")
+            output = Path(cmd[cmd.index("--output") + 1])
+            output.parent.mkdir(parents=True, exist_ok=True)
+            output.write_bytes(b"onnx")
+            return
+        if "training.infer" in cmd:
+            events.append("smoke")
+            model_path = Path(cmd[cmd.index("--model") + 1])
+            json_path = model_path.with_suffix(".onnx.json")
+            assert json_path.exists()
+            payload = json.loads(json_path.read_text(encoding="utf-8"))
+            assert payload["status"]["smoke_test"] == "pending"
+
+    monkeypatch.setattr("training.export_onnx.subprocess.run", fake_run)
+
+    _, json_path = export_onnx(project, project_dir, ckpt=ckpt)
+
+    payload = json.loads(json_path.read_text(encoding="utf-8"))
+    assert payload["dataset"] == project
+    assert events == ["export", "smoke"]
