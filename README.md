@@ -101,6 +101,15 @@ python -m app.main doctor --ddn_vladimir --auto-fix
 python -m app.main train  --ddn_vladimir --epochs 1 --check
 python -m app.main train  --ddn_vladimir --epochs 1
 ```
+# Если хочешь обучение на GPU (только NVIDIA RTX 3060)
+- ### Запусти это (PowerShell):
+```powershell
+.\.venv\Scripts\python.exe -m pip uninstall -y torch torchvision torchaudio
+```
+- ### Поставить PyTorch с CUDA:
+```powershell
+.\.venv\Scripts\python.exe -m pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+```
 
 Проект ориентирован на полностью локальный сценарий без обязательных облачных сервисов. Основная идея — дать воспроизводимый и прозрачный пайплайн, в котором все этапы от исходного текста до итоговой модели находятся под контролем пользователя. Внутри репозитория есть CLI-приложение, инструменты подготовки датасета, проверка качества манифеста и аудио, интеграция с обучающим контуром Piper и отдельный веб-интерфейс студии записи.
 
