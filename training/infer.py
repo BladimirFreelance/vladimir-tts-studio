@@ -99,9 +99,37 @@ def synth_with_piper(
     input_text = _prepare_input(model_path, text, mode, config_path=config_path)
 
     voice = PiperVoice.load(str(model_path))
-    audio_bytes = b"".join(voice.synthesize_stream_raw(input_text))
-
     out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if hasattr(voice, "synthesize_wav"):
+        with wave.open(str(out_path), "wb") as wf:
+            voice.synthesize_wav(input_text, wf)
+        return
+
+    if hasattr(voice, "synthesize"):
+        chunks = voice.synthesize(input_text)
+        audio_bytes = b""
+        sample_rate, sample_width, sample_channels = 22050, 2, 1
+        for chunk in chunks:
+            audio_bytes += getattr(chunk, "audio_int16_bytes", b"")
+            sample_rate = int(getattr(chunk, "sample_rate", sample_rate))
+            sample_width = int(getattr(chunk, "sample_width", sample_width))
+            sample_channels = int(getattr(chunk, "sample_channels", sample_channels))
+
+        with wave.open(str(out_path), "wb") as wf:
+            wf.setnchannels(sample_channels)
+            wf.setsampwidth(sample_width)
+            wf.setframerate(sample_rate)
+            wf.writeframes(audio_bytes)
+        return
+
+    if hasattr(voice, "synthesize_stream_raw"):
+        audio_bytes = b"".join(voice.synthesize_stream_raw(input_text))
+    elif hasattr(voice, "synthesize_raw"):
+        audio_bytes = voice.synthesize_raw(input_text)
+    else:
+        raise RuntimeError("PiperVoice API не поддерживает доступные способы синтеза")
+
     with wave.open(str(out_path), "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)

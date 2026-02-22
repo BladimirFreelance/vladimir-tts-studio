@@ -77,6 +77,18 @@ def test_smoke_export_onnx(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     ckpt_path.write_text("checkpoint", encoding="utf-8")
 
     monkeypatch.setattr("training.export_onnx.ensure_espeakbridge_import", lambda: None)
+    monkeypatch.setattr(
+        "training.export_onnx.build_onnx_config",
+        lambda _project_dir: {
+            "num_symbols": 10,
+            "num_speakers": 1,
+            "phoneme_id_map": {"a": [1]},
+            "audio": {"sample_rate": 22050},
+            "language": {"code": "ru_RU"},
+            "espeak": {"voice": "ru"},
+            "inference": {"noise_scale": 0.667, "length_scale": 1.0, "noise_w": 0.8},
+        },
+    )
 
     calls: list[list[str]] = []
 

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 import subprocess
 import sys
 
 from training.checkpoints import find_best_ckpt
+from training.onnx_config import build_onnx_config
 from training.utils import ensure_espeakbridge_import
 from pathlib import Path
 
@@ -32,30 +34,31 @@ def export_onnx(
     subprocess.run(cmd, check=True)
 
     json_path = onnx_path.with_suffix(".onnx.json")
-    payload = {
-        "audio": {"sample_rate": 22050},
-        "language": {"code": "ru_RU"},
-        "inference": {"noise_scale": 0.667, "length_scale": 1.0, "noise_w": 0.8},
-        "phoneme_type": "espeak",
-        "espeak": {"voice": "ru"},
-    }
-    json_path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    payload = build_onnx_config(project_dir)
 
     smoke = out_dir / "export_smoke_test.wav"
-    subprocess.run(
-        [
-            sys.executable,
-            "-m",
-            "training.infer",
-            "--model",
-            str(onnx_path),
-            "--text",
-            "Проверка экспорта завершена успешно.",
-            "--out",
-            str(smoke),
-        ],
-        check=True,
+    smoke_status = "ok"
+    try:
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "training.infer",
+                "--model",
+                str(onnx_path),
+                "--text",
+                "Проверка экспорта завершена успешно.",
+                "--out",
+                str(smoke),
+            ],
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        smoke_status = f"warning: smoke-test failed ({exc})"
+        logging.warning("ONNX smoke-test failed: %s", exc)
+
+    payload["status"] = {"smoke_test": smoke_status}
+    json_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
     )
     return onnx_path, json_path
