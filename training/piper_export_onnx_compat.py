@@ -1,18 +1,44 @@
 from __future__ import annotations
 
 import importlib.util
+from pathlib import Path
 import runpy
 import subprocess
 import sys
-
-from training.piper_train_bootstrap import extend_piper_namespace
-
+import types
 
 EXPORT_MODULE_CANDIDATES: tuple[str, ...] = (
-    "piper.export_onnx",
     "piper.train.export_onnx",
     "piper.train.vits.export_onnx",
+    "piper.export_onnx",
 )
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[1]
+
+
+def _force_register_third_party_train() -> None:
+    src_root = (_repo_root() / "third_party" / "piper1-gpl" / "src").resolve()
+    train_dir = (src_root / "piper" / "train").resolve()
+    train_init = train_dir / "__init__.py"
+
+    if not train_dir.exists():
+        raise RuntimeError(f"Training sources not found: {train_dir}")
+
+    src_root_str = str(src_root)
+    if src_root_str not in sys.path:
+        sys.path.append(src_root_str)
+
+    for module_name in list(sys.modules.keys()):
+        if module_name == "piper.train" or module_name.startswith("piper.train."):
+            sys.modules.pop(module_name, None)
+
+    pkg = types.ModuleType("piper.train")
+    pkg.__file__ = str(train_init)
+    pkg.__path__ = [str(train_dir)]
+    pkg.__package__ = "piper.train"
+    sys.modules["piper.train"] = pkg
 
 
 def _patch_torch_onnx_export() -> None:
@@ -42,7 +68,20 @@ def _ensure_onnxscript() -> None:
 
 def _choose_export_module() -> str:
     for module_name in EXPORT_MODULE_CANDIDATES:
-        if importlib.util.find_spec(module_name) is not None:
+        try:
+            spec = importlib.util.find_spec(module_name)
+        except ModuleNotFoundError:
+            spec = None
+
+        if spec is None:
+            continue
+
+        origin = getattr(spec, "origin", None)
+        normalized_origin = str(origin).replace("\\", "/") if origin else ""
+        if "site-packages/piper/train/export_onnx.py" in normalized_origin:
+            continue
+
+        if spec is not None:
             return module_name
 
     searched = ", ".join(EXPORT_MODULE_CANDIDATES)
@@ -54,7 +93,7 @@ def _choose_export_module() -> str:
 
 
 def main() -> None:
-    extend_piper_namespace()
+    _force_register_third_party_train()
     module_name = _choose_export_module()
     _ensure_onnxscript()
     _patch_torch_onnx_export()
