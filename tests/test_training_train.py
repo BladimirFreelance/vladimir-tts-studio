@@ -216,22 +216,37 @@ def test_run_training_passes_custom_audio_dir(
     assert captured["cmd"][index + 1] == str(custom_audio_dir)
 
 
-def test_detect_supported_gpu_or_raise_uses_first_compatible(
+def test_detect_supported_gpu_or_raise_skips_unsupported_sm_and_selects_sm86(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(
             is_available=lambda: True,
+            get_arch_list=lambda: ["sm_75", "sm_86"],
             device_count=lambda: 2,
             get_device_name=lambda idx: ["RTX 5060 Ti", "RTX 3060"][idx],
             get_device_capability=lambda idx: [(12, 0), (8, 6)][idx],
-            synchronize=lambda _idx: None,
         ),
-        zeros=lambda *_args, **kwargs: (_ for _ in ()).throw(
-            RuntimeError("no kernel image is available")
-        )
-        if kwargs.get("device") == "cuda:0"
-        else 0,
+    )
+    monkeypatch.setattr(train_module, "torch", fake_torch)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    env_patch = train_module.detect_supported_gpu_or_raise()
+
+    assert env_patch == {"CUDA_VISIBLE_DEVICES": "1"}
+
+
+def test_detect_supported_gpu_or_raise_prefers_3060_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(
+            is_available=lambda: True,
+            get_arch_list=lambda: ["sm_86", "sm_89"],
+            device_count=lambda: 2,
+            get_device_name=lambda idx: ["RTX 4090", "RTX 3060"][idx],
+            get_device_capability=lambda idx: [(8, 9), (8, 6)][idx],
+        ),
     )
     monkeypatch.setattr(train_module, "torch", fake_torch)
     monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
@@ -247,19 +262,37 @@ def test_detect_supported_gpu_or_raise_prefers_named_gpu(
     fake_torch = types.SimpleNamespace(
         cuda=types.SimpleNamespace(
             is_available=lambda: True,
+            get_arch_list=lambda: ["sm_86", "sm_89"],
             device_count=lambda: 2,
             get_device_name=lambda idx: ["RTX 4090", "RTX 3060"][idx],
             get_device_capability=lambda idx: [(8, 9), (8, 6)][idx],
-            synchronize=lambda _idx: None,
         ),
-        zeros=lambda *_args, **_kwargs: 0,
     )
     monkeypatch.setattr(train_module, "torch", fake_torch)
     monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
 
-    env_patch = train_module.detect_supported_gpu_or_raise(preferred_gpu_name="3060")
+    env_patch = train_module.detect_supported_gpu_or_raise(preferred_gpu_name="4090")
 
-    assert env_patch == {"CUDA_VISIBLE_DEVICES": "1"}
+    assert env_patch == {"CUDA_VISIBLE_DEVICES": "0"}
+
+
+def test_detect_supported_gpu_or_raise_raises_when_no_compatible_gpu(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_torch = types.SimpleNamespace(
+        cuda=types.SimpleNamespace(
+            is_available=lambda: True,
+            get_arch_list=lambda: ["sm_86"],
+            device_count=lambda: 1,
+            get_device_name=lambda _idx: "RTX 5060 Ti",
+            get_device_capability=lambda _idx: (12, 0),
+        ),
+    )
+    monkeypatch.setattr(train_module, "torch", fake_torch)
+    monkeypatch.delenv("CUDA_VISIBLE_DEVICES", raising=False)
+
+    with pytest.raises(RuntimeError, match="совместимых CUDA GPU"):
+        train_module.detect_supported_gpu_or_raise()
 
 
 def test_detect_supported_gpu_or_raise_supports_force_cpu(

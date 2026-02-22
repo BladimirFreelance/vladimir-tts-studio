@@ -4,6 +4,7 @@ import logging
 import os
 import argparse
 import importlib
+import re
 import shlex
 import subprocess
 import sys
@@ -170,63 +171,55 @@ def detect_supported_gpu_or_raise(
         LOGGER.warning("CUDA недоступна, запускаю обучение на CPU")
         return {}
 
-    preferred = (preferred_gpu_name or "").strip().lower()
-    preferred_candidates: list[int] = []
-    fallback_candidates: list[int] = []
+    supported_sms: set[int] = set()
+    for arch in torch.cuda.get_arch_list():
+        match = re.search(r"(?:sm|compute)_([0-9]+)", arch)
+        if match:
+            supported_sms.add(int(match.group(1)))
 
+    compatible: list[tuple[int, str, int]] = []
     for index in range(torch.cuda.device_count()):
         device_name = torch.cuda.get_device_name(index)
-        if preferred and preferred in device_name.lower():
-            preferred_candidates.append(index)
-        else:
-            fallback_candidates.append(index)
+        major, minor = torch.cuda.get_device_capability(index)
+        sm = major * 10 + minor
+        if sm not in supported_sms:
+            LOGGER.warning(
+                "Skip GPU #%s: %s (sm_%s) — unsupported by current torch build",
+                index,
+                device_name,
+                sm,
+            )
+            continue
+        compatible.append((index, device_name, sm))
 
-    if preferred and not preferred_candidates:
+    if not compatible:
+        raise RuntimeError(
+            "Не найдено совместимых CUDA GPU для текущей сборки torch. "
+            "Используйте --force_cpu или установите torch с поддержкой вашей GPU архитектуры."
+        )
+
+    preferred = (preferred_gpu_name or "3060").strip().lower()
+    chosen = next(
+        (item for item in compatible if preferred and preferred in item[1].lower()),
+        compatible[0],
+    )
+
+    chosen_index, chosen_name, chosen_sm = chosen
+
+    if preferred_gpu_name and preferred not in chosen_name.lower():
         LOGGER.warning(
             "GPU с именем '%s' не найден. Продолжаю обычный автоподбор.",
             preferred_gpu_name,
         )
 
-    candidate_indexes = preferred_candidates + fallback_candidates
-
-    for index in candidate_indexes:
-        device_name = torch.cuda.get_device_name(index)
-        capability = torch.cuda.get_device_capability(index)
-        try:
-            torch.zeros(1, device=f"cuda:{index}")
-            torch.cuda.synchronize(index)
-            if index == 0:
-                LOGGER.info(
-                    "Выбран GPU #%s: %s (sm_%s%s)",
-                    index,
-                    device_name,
-                    capability[0],
-                    capability[1],
-                )
-                return {}
-
-            LOGGER.info(
-                "GPU #0 пропущен, выбран совместимый GPU #%s: %s (sm_%s%s). "
-                "Для процесса обучения установлен CUDA_VISIBLE_DEVICES=%s",
-                index,
-                device_name,
-                capability[0],
-                capability[1],
-                index,
-            )
-            return {"CUDA_VISIBLE_DEVICES": str(index)}
-        except RuntimeError as exc:
-            LOGGER.warning(
-                "Пропускаю GPU #%s (%s, sm_%s%s): %s",
-                index,
-                device_name,
-                capability[0],
-                capability[1],
-                exc,
-            )
-
-    LOGGER.warning("Не найден совместимый CUDA GPU. Продолжаю обучение на CPU")
-    return {"CUDA_VISIBLE_DEVICES": ""}
+    LOGGER.info(
+        "Selected GPU #%s: %s (sm_%s). CUDA_VISIBLE_DEVICES=%s",
+        chosen_index,
+        chosen_name,
+        chosen_sm,
+        chosen_index,
+    )
+    return {"CUDA_VISIBLE_DEVICES": str(chosen_index)}
 
 
 
