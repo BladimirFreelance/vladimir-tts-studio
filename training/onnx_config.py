@@ -49,7 +49,7 @@ def load_template_config(project_dir: Path) -> dict[str, Any]:
     return json.loads(template_path.read_text(encoding="utf-8"))
 
 
-def build_onnx_config(project_dir: Path) -> dict[str, Any]:
+def build_onnx_config(project_dir: Path, project_name: str) -> dict[str, Any]:
     template = load_template_config(project_dir)
 
     config: dict[str, Any] = dict(template)
@@ -69,6 +69,8 @@ def build_onnx_config(project_dir: Path) -> dict[str, Any]:
     espeak["voice"] = "ru"
     config["espeak"] = espeak
 
+    config["dataset"] = project_name
+
     inference = dict(config.get("inference") or {})
     inference.update({"noise_scale": 0.667, "length_scale": 1.0, "noise_w": 0.8})
     config["inference"] = inference
@@ -80,4 +82,3 @@ def build_onnx_config(project_dir: Path) -> dict[str, Any]:
         )
 
     return config
-

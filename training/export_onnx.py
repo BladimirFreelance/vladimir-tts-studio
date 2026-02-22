@@ -34,7 +34,11 @@ def export_onnx(
     subprocess.run(cmd, check=True)
 
     json_path = onnx_path.with_suffix(".onnx.json")
-    payload = build_onnx_config(project_dir)
+    payload = build_onnx_config(project_dir, project)
+    payload["status"] = {"smoke_test": "pending"}
+    json_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
     smoke = out_dir / "export_smoke_test.wav"
     smoke_status = "ok"
